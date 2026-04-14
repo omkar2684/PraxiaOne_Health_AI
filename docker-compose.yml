@@ -1,0 +1,119 @@
+services:
+  # ----------------------------------------------------
+  # 1. DATABASE LAYER
+  # ----------------------------------------------------
+  db:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_DATABASE: praxiaone3
+      MYSQL_USER: praxiaone3_user
+      MYSQL_PASSWORD: StrongPass@123
+      MYSQL_ROOT_PASSWORD: RootStrongPass@123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_storage:/root/.ollama
+
+  # ----------------------------------------------------
+  # 2. BACKEND LAYER (Django API + RAG Engine)
+  # ----------------------------------------------------
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      ollama:
+        condition: service_started
+    environment:
+      - DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost,backend,frontend,10.0.2.2,*
+      - MYSQL_HOST=db
+      - MYSQL_PORT=3306
+      - MYSQL_DATABASE=praxiaone3
+      - MYSQL_USER=praxiaone3_user
+      - MYSQL_PASSWORD=StrongPass@123
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - QDRANT_URL=http://qdrant:6333
+      - OLLAMA_URL=http://ollama:11434
+    command: >
+      sh -c "python manage.py migrate && python seed_sample_data.py || true && gunicorn praxiaone.wsgi:application --bind 0.0.0.0:8000"
+
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - MYSQL_HOST=db
+      - MYSQL_PORT=3306
+      - MYSQL_DATABASE=praxiaone3
+      - MYSQL_USER=praxiaone3_user
+      - MYSQL_PASSWORD=StrongPass@123
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+    command: >
+      sh -c "celery -A praxiaone worker --loglevel=info"
+
+  # ----------------------------------------------------
+  # 3. FRONTEND LAYER (React Next.js UI)
+  # ----------------------------------------------------
+  frontend:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+
+volumes:
+  mysql_data:
+  qdrant_storage:
+  ollama_storage:
