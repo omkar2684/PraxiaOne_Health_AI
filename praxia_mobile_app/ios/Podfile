@@ -1,19 +1,13 @@
-# 1. These lines are crucial. They tell CocoaPods where to find Flutter's setup logic.
-target_properties = parse_json_safe(File.join('..', '..', 'package.json')) rescue {}
-flutter_application_path = '..'
-
-load File.join(flutter_application_path, '.ios', 'Flutter', 'podhelper.rb') rescue load File.join(flutter_application_path, 'Flutter', 'podhelper.rb')
-
-# 2. Set the platform to 14.0
 platform :ios, '14.0'
 
-install! 'cocoapods', :deterministic_uuids => false
+# Standard Flutter path setup
+# This assumes your Podfile is in praxia_mobile_app/ios/Podfile
+flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 
 target 'Runner' do
   use_frameworks!
   use_modular_headers!
 
-  # 3. This is the line that was failing; now it will work because of the 'load' lines above
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 end
 
@@ -21,7 +15,7 @@ post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
     target.build_configurations.each do |config|
-      # Force every pod to use iOS 14.0
+      # This ensures the iOS 14.0 target is forced onto every plugin
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
     end
   end
