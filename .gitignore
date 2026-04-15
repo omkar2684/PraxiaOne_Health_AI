@@ -13,8 +13,9 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+# commented out to avoid ignoring Flutter's lib folder
+# lib/
+# lib64/
 parts/
 sdist/
 var/
@@ -60,8 +61,11 @@ out/
 build/
 
 # OS Files
+# OS Files
 .DS_Store
 Thumbs.db
+*.exe
+qdrant/qdrant.exe
 
 # Mobile
 .dart_tool/
