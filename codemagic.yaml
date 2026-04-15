@@ -6,14 +6,13 @@ workflows:
     working_directory: praxia_mobile_app
     environment:
       flutter: stable
-      xcode: latest
-      groups:
-        - apple_auth # Optional: Only if you've set up API keys in Codemagic
+      xcode: 15.4 # Using a specific stable version
     scripts:
-      - name: Initialize iOS Configuration
+      - name: Prepare Flutter and Plugins
         script: |
-          # Force Flutter to generate missing podhelper and symlinks on the Mac
           flutter pub get
+          # This command creates the 'podhelper.rb' that the Podfile needs
+          flutter precache --ios
           flutter build ios --config-only --no-codesign
       - name: Install CocoaPods
         script: |
@@ -21,8 +20,7 @@ workflows:
           pod install
       - name: Build IPA
         script: |
-          # Build the IPA for distribution/testing
-          # --no-codesign allows the build to finish without Apple Certificates
+          # The archive step
           flutter build ipa --release --no-codesign -t lib/main.dart
     artifacts:
       - build/ios/ipa/*.ipa
