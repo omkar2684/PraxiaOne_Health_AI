@@ -6,21 +6,26 @@ workflows:
     working_directory: praxia_mobile_app
     environment:
       flutter: stable
-      xcode: 15.4 # Using a specific stable version
+      # Changed from 15.4 to 26.2 to match Codemagic's current environment
+      xcode: 26.2 
+      cocoapods: default
     scripts:
       - name: Prepare Flutter and Plugins
         script: |
           flutter pub get
-          # This command creates the 'podhelper.rb' that the Podfile needs
+          # Pre-generating files to ensure podhelper.rb exists
           flutter precache --ios
           flutter build ios --config-only --no-codesign
       - name: Install CocoaPods
         script: |
           cd ios
+          # Removing any existing lock file to prevent version conflicts
+          rm -rf Pods
+          rm -f Podfile.lock
           pod install
       - name: Build IPA
         script: |
-          # The archive step
+          # The final archiving step
           flutter build ipa --release --no-codesign -t lib/main.dart
     artifacts:
       - build/ios/ipa/*.ipa
