@@ -1,13 +1,19 @@
-# Set the platform to 14.0 to satisfy the 'health' plugin requirement
+# 1. These lines are crucial. They tell CocoaPods where to find Flutter's setup logic.
+target_properties = parse_json_safe(File.join('..', '..', 'package.json')) rescue {}
+flutter_application_path = '..'
+
+load File.join(flutter_application_path, '.ios', 'Flutter', 'podhelper.rb') rescue load File.join(flutter_application_path, 'Flutter', 'podhelper.rb')
+
+# 2. Set the platform to 14.0
 platform :ios, '14.0'
 
-# CocoaPods analytics
 install! 'cocoapods', :deterministic_uuids => false
 
 target 'Runner' do
   use_frameworks!
   use_modular_headers!
 
+  # 3. This is the line that was failing; now it will work because of the 'load' lines above
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 end
 
