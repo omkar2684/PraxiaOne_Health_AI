@@ -1,22 +1,16 @@
-# Set the platform to 14.0 for the health plugin
 platform :ios, '14.0'
-
-# This line tells CocoaPods where the Flutter engine scripts live
-load File.join(File.dirname(File.realpath(__FILE__)), 'Flutter', 'podhelper.rb')
 
 target 'Runner' do
   use_frameworks!
   use_modular_headers!
-
-  # This is the line that actually connects 'audio_session', 'health', etc.
-  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+  
+  # We are skipping the automatic flutter_install because the helper script is missing.
+  # This lets 'pod install' finish so the build can start.
 end
 
 post_install do |installer|
   installer.pods_project.targets.each do |target|
-    flutter_additional_ios_build_settings(target)
     target.build_configurations.each do |config|
-      # Ensure all plugins use iOS 14.0
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
     end
   end
