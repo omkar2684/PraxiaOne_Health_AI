@@ -1,0 +1,23 @@
+workflows:
+  ios-build:
+    name: PraxiaOne iOS Build
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    working_directory: praxia_mobile_app
+    environment:
+      flutter: stable
+      xcode: latest
+    scripts:
+      - name: Get Flutter packages
+        script: flutter packages get
+      - name: Build IPA
+        script: |
+          # We use --no-codesign because we are generating the file for testing
+          flutter build ipa --release --no-codesign -t lib/main.dart
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      email:
+        recipients:
+          - omkarambar@gmail.com
+          
