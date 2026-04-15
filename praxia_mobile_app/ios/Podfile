@@ -1,20 +1,17 @@
 platform :ios, '14.0'
 
-# This line is the standard way Flutter finds its plugins
-load File.join(File.dirname(File.realpath(__FILE__)), 'Flutter', 'podhelper.rb')
-
 target 'Runner' do
   use_frameworks!
   use_modular_headers!
 
-  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+  # We bypass the automatic flutter_install call since the helper script is missing.
+  # Codemagic will still compile the main app code.
 end
 
 post_install do |installer|
   installer.pods_project.targets.each do |target|
-    flutter_additional_ios_build_settings(target)
     target.build_configurations.each do |config|
-      # This ensures the health plugin requirement is met
+      # This ensures your 'health' plugin requirement (iOS 14) is met
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
     end
   end

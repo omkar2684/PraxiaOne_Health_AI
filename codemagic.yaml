@@ -1,5 +1,5 @@
 workflows:
-  ios-build:
+  ios-release-workflow:
     name: PraxiaOne iOS Build
     max_build_duration: 60
     instance_type: mac_mini_m2
@@ -7,12 +7,22 @@ workflows:
     environment:
       flutter: stable
       xcode: latest
+      groups:
+        - apple_auth # Optional: Only if you've set up API keys in Codemagic
     scripts:
-      - name: Get Flutter packages
-        script: flutter packages get
+      - name: Initialize iOS Configuration
+        script: |
+          # Force Flutter to generate missing podhelper and symlinks on the Mac
+          flutter pub get
+          flutter build ios --config-only --no-codesign
+      - name: Install CocoaPods
+        script: |
+          cd ios
+          pod install
       - name: Build IPA
         script: |
-          # We use --no-codesign because we are generating the file for testing
+          # Build the IPA for distribution/testing
+          # --no-codesign allows the build to finish without Apple Certificates
           flutter build ipa --release --no-codesign -t lib/main.dart
     artifacts:
       - build/ios/ipa/*.ipa
