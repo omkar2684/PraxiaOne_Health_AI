@@ -1,10 +1,7 @@
-# Set the application path
-flutter_application_path = '..'
-
-# Force load the Flutter helper script
-load File.join(flutter_application_path, '.ios', 'Flutter', 'podhelper.rb') rescue load File.join(flutter_application_path, 'Flutter', 'podhelper.rb')
-
 platform :ios, '14.0'
+
+# This line is the standard way Flutter finds its plugins
+load File.join(File.dirname(File.realpath(__FILE__)), 'Flutter', 'podhelper.rb')
 
 target 'Runner' do
   use_frameworks!
@@ -17,6 +14,7 @@ post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
     target.build_configurations.each do |config|
+      # This ensures the health plugin requirement is met
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
     end
   end
