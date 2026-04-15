@@ -12,10 +12,18 @@ workflows:
         script: |
           flutter pub get
           flutter precache --ios
+          # This command creates the 'podhelper.rb' file that the Podfile needs
+          flutter build ios --config-only --no-codesign
+      - name: Install CocoaPods
+        script: |
+          cd ios
+          # Force a fresh install of the plugins
+          rm -rf Pods
+          rm -f Podfile.lock
+          pod install
       - name: Build IPA
         script: |
-          # The --no-codesign is key here. 
-          # Flutter will attempt to link plugins automatically during the build phase.
+          # The --no-codesign is key for testing
           flutter build ipa --release --no-codesign -t lib/main.dart
     artifacts:
       - build/ios/ipa/*.ipa
