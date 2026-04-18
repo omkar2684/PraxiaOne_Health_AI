@@ -329,7 +329,7 @@ export default function DataSourcesPage() {
         icon: <StorageRoundedIcon />,
         primaryAction: {
           label: connected.self ? "Manage" : "Connect",
-          onClick: () => setConnected((p) => ({ ...p, self: true })),
+          onClick: () => connected.self ? router.push("/profile") : setConnected((p) => ({ ...p, self: true })),
         },
         secondaryAction: {
           label: "Go to Vitals",

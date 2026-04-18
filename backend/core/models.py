@@ -116,6 +116,7 @@ class ChatMessage(models.Model):
     )
     role = models.CharField(max_length=10, choices=(("user", "user"), ("ai", "ai")))
     text = models.TextField()
+    meta_data = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

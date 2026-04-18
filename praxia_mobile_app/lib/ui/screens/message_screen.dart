@@ -288,57 +288,40 @@ class _ChatBubble extends StatelessWidget {
             ),
             if (hasResults && !isUser) ...[
               const Divider(height: 1),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: TextButton.icon(
-                  onPressed: () => _showAnalysis(context, results),
-                  icon: const Icon(Icons.analytics_outlined, size: 16, color: AppColors.primary),
-                  label: const Text('Multi-Model Analysis', style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.bold)),
+              Container(
+                height: 350,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF0F172A),
+                  borderRadius: BorderRadius.only(bottomLeft: Radius.circular(20), bottomRight: Radius.circular(20)),
+                ),
+                child: DefaultTabController(
+                  length: 2,
+                  child: Column(
+                    children: [
+                      const TabBar(
+                        labelColor: Colors.white,
+                        unselectedLabelColor: Colors.grey,
+                        indicatorColor: AppColors.primary,
+                        indicatorSize: TabBarIndicatorSize.tab,
+                        indicatorWeight: 3,
+                        tabs: [
+                          Tab(child: Text('DeepSeek-R1', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                          Tab(child: Text('Med42 (Clinical)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                        ],
+                      ),
+                      Expanded(
+                        child: TabBarView(
+                          children: [
+                            _ModelView(text: results['deepseek'] ?? 'Analysis not available', isDark: true),
+                            _ModelView(text: results['med42'] ?? 'Analysis not available', isDark: true),
+                          ],
+                        ),
+                      )
+                    ],
+                  ),
                 ),
               )
             ]
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showAnalysis(BuildContext context, Map<String, dynamic> results) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.8,
-        decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
-        child: Column(
-          children: [
-            Container(margin: const EdgeInsets.symmetric(vertical: 12), width: 40, height: 5, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(10))),
-            const Text('Clinical Model Split', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.accent)),
-            const SizedBox(height: 10),
-            Expanded(
-              child: DefaultTabController(
-                length: 2,
-                child: Column(
-                  children: [
-                    const TabBar(
-                      labelColor: AppColors.primary,
-                      unselectedLabelColor: Colors.grey,
-                      indicatorColor: AppColors.primary,
-                      tabs: [Tab(text: 'DeepSeek-R1'), Tab(text: 'Med42 (Clinical)')],
-                    ),
-                    Expanded(
-                      child: TabBarView(
-                        children: [
-                          _ModelView(text: results['deepseek'] ?? 'Analysis not available'),
-                          _ModelView(text: results['med42'] ?? 'Analysis not available'),
-                        ],
-                      ),
-                    )
-                  ],
-                ),
-              ),
-            ),
           ],
         ),
       ),
@@ -348,9 +331,24 @@ class _ChatBubble extends StatelessWidget {
 
 class _ModelView extends StatelessWidget {
   final String text;
-  const _ModelView({required this.text});
+  final bool isDark;
+  const _ModelView({required this.text, this.isDark = false});
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(padding: const EdgeInsets.all(20), child: MarkdownBody(data: text));
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16), 
+      child: MarkdownBody(
+        data: text,
+        styleSheet: isDark 
+          ? MarkdownStyleSheet(
+              p: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.5),
+              h1: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              h2: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+              h3: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+              listBullet: const TextStyle(color: Colors.white70),
+            )
+          : null,
+      )
+    );
   }
 }

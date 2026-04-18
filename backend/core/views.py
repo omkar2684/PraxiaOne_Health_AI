@@ -231,7 +231,7 @@ class TTSView(APIView):
 
 class HealthChatView(APIView):
     permission_classes = [permissions.IsAuthenticated]
-    def _save(self, user, role, text): ChatMessage.objects.create(user=user, role=role, text=text)
+    def _save(self, user, role, text, meta=None): ChatMessage.objects.create(user=user, role=role, text=text, meta_data=meta or {})
     def get(self, request):
         from .serializers import ChatMessageSerializer
         qs = ChatMessage.objects.filter(user=request.user).order_by("created_at")
@@ -263,7 +263,7 @@ class HealthChatView(APIView):
             from .mock_llm import generate_parallel_analysis
             results = generate_parallel_analysis(user_message, doc_context, mem_context, profile_context)
             reply = results.get("consensus", results.get("deepseek", "Analysis complete."))
-            self._save(request.user, "ai", reply)
+            self._save(request.user, "ai", reply, meta={"results": results})
             return Response({"reply": reply, "results": results, "doc_hits": doc_hits})
         except Exception as e: return Response({"detail": str(e)}, status=500)
 

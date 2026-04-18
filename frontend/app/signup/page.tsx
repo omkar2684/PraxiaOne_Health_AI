@@ -137,7 +137,7 @@ function SignupForm() {
   };
 
   return (
-    <Box sx={{ minHeight: "80vh", display: "grid", placeItems: "center", p: 2 }}>
+    <Box sx={{ minHeight: "80vh", display: "grid", placeItems: "center", p: 2 }} suppressHydrationWarning>
       <Stack spacing={3} alignItems="center" sx={{ width: "100%", maxWidth: 440 }}>
         {/* ANIMATION */}
         <Box sx={{ width: "100%", maxWidth: 320, borderRadius: 0, background: "linear-gradient(180deg, rgba(14,165,233,0.10), rgba(20,184,166,0.08))", boxShadow: "0 25px 80px rgba(2,6,23,0.08)", p: 2, display: "grid", placeItems: "center" }}>
@@ -152,39 +152,41 @@ function SignupForm() {
 
             {err && <Alert severity="error" sx={{ mb: 2 }}>{err}</Alert>}
 
-            <Stack spacing={2}>
-              <Box display="flex" justifyContent="center" mb={2}>
-                <Box position="relative">
-                  <Avatar src={profilePreview} sx={{ width: 80, height: 80 }} />
-                  <IconButton color="primary" aria-label="upload picture" component="label" sx={{ position: "absolute", bottom: -10, right: -10, backgroundColor: "background.paper", "&:hover":{backgroundColor: "background.paper"} }}>
-                    <input hidden accept="image/*" type="file" onChange={handleImageChange} />
-                    <PhotoCamera />
-                  </IconButton>
+            <Box component="form" autoComplete="off" onSubmit={(e) => e.preventDefault()}>
+              <Stack spacing={2}>
+                <Box display="flex" justifyContent="center" mb={2}>
+                  <Box position="relative">
+                    <Avatar src={profilePreview} sx={{ width: 80, height: 80 }} />
+                    <IconButton color="primary" aria-label="upload picture" component="label" sx={{ position: "absolute", bottom: -10, right: -10, backgroundColor: "background.paper", "&:hover":{backgroundColor: "background.paper"} }}>
+                      <input hidden accept="image/*" type="file" onChange={handleImageChange} />
+                      <PhotoCamera />
+                    </IconButton>
+                  </Box>
                 </Box>
-              </Box>
 
-              <TextField label="Full Name" value={fullName} onChange={(e) => setFullName(e.target.value)} fullWidth />
-              <TextField label="Phone Number" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} fullWidth />
-              <TextField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} fullWidth />
-              <TextField label="Username" value={username} onChange={(e) => setUsername(e.target.value)} fullWidth />
-              <TextField label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} fullWidth />
+                <TextField label="Full Name" value={fullName} onChange={(e) => setFullName(e.target.value)} fullWidth autoComplete="off" />
+                <TextField label="Phone Number" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} fullWidth autoComplete="off" />
+                <TextField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} fullWidth autoComplete="email" />
+                <TextField label="Username" value={username} onChange={(e) => setUsername(e.target.value)} fullWidth autoComplete="off" />
+                <TextField label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} fullWidth autoComplete="new-password" />
 
-              <Stack direction="row" spacing={2}>
-                <TextField label="Age" type="number" value={age} onChange={(e) => setAge(e.target.value)} fullWidth />
-                <TextField select label="Gender" value={gender} onChange={(e) => setGender(e.target.value)} fullWidth SelectProps={{ native: true }}>
-                  <option value=""></option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                  <option value="Prefer not to say">Prefer not to say</option>
-                </TextField>
+                <Stack direction="row" spacing={2}>
+                  <TextField label="Age" type="number" value={age} onChange={(e) => setAge(e.target.value)} fullWidth autoComplete="off" />
+                  <TextField select label="Gender" value={gender} onChange={(e) => setGender(e.target.value)} fullWidth SelectProps={{ native: true }} autoComplete="off">
+                    <option value=""></option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                    <option value="Prefer not to say">Prefer not to say</option>
+                  </TextField>
+                </Stack>
+                <TextField label="Allergies (if any)" value={allergies} onChange={(e) => setAllergies(e.target.value)} fullWidth autoComplete="off" />
+
+                <Button variant="contained" color="success" onClick={onSignup} disabled={loading} sx={{ borderRadius: 0, fontWeight: 900, py: 1.2 }}>
+                  {loading ? "Creating account..." : "Sign Up"}
+                </Button>
               </Stack>
-              <TextField label="Allergies (if any)" value={allergies} onChange={(e) => setAllergies(e.target.value)} fullWidth />
-
-              <Button variant="contained" color="success" onClick={onSignup} disabled={loading} sx={{ borderRadius: 0, fontWeight: 900, py: 1.2 }}>
-                {loading ? "Creating account..." : "Sign Up"}
-              </Button>
-            </Stack>
+            </Box>
 
             <Divider sx={{ my: 3 }}>or continue with</Divider>
 

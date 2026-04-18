@@ -88,6 +88,14 @@ class RegisterSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Username already exists or is too similar to another user.")
         return value
 
+    def validate_email(self, value):
+        value = (value or "").strip().lower()
+        if not value:
+            raise serializers.ValidationError("Email is required.")
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("A user with this email already exists.")
+        return value
+
     def create(self, validated_data):
         age = validated_data.pop("age", None)
         gender = validated_data.pop("gender", "")
@@ -124,7 +132,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 class ChatMessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ChatMessage
-        fields = ["id", "role", "text", "created_at"]
+        fields = ["id", "role", "text", "meta_data", "created_at"]
 
 class MedicationSerializer(serializers.ModelSerializer):
     class Meta:

@@ -107,7 +107,15 @@ export default function SettingsPage() {
     if(accs) setSavedAccounts(safeParse<any[]>(accs) || []);
 
     const saved = safeParse<SettingsModel>(localStorage.getItem(STORAGE_KEY));
-    if (saved) setForm((p) => ({ ...p, ...saved }));
+    if (saved) {
+      setForm((p) => ({
+        ...p,
+        ...saved,
+        age: !isNaN(Number(saved.age)) ? saved.age : "",
+        height_cm: !isNaN(Number(saved.height_cm)) ? saved.height_cm : "",
+        weight_kg: !isNaN(Number(saved.weight_kg)) ? saved.weight_kg : "",
+      }));
+    }
     else setForm(p => ({ ...p, themeMode: themeName as any }));
 
     apiFetch<any>("/user/settings/", { method: "GET" }).then((resp) => {
@@ -117,9 +125,9 @@ export default function SettingsPage() {
         ...prev,
         displayName: p.full_name || prev.displayName,
         phone: p.phone_number || prev.phone,
-        age: p.age ? String(p.age) : prev.age,
-        height_cm: p.height_cm ? String(p.height_cm) : prev.height_cm,
-        weight_kg: p.weight_kg ? String(p.weight_kg) : prev.weight_kg,
+        age: p.age ? String(p.age) : (!isNaN(Number(prev.age)) ? prev.age : ""),
+        height_cm: p.height_cm ? String(p.height_cm) : (!isNaN(Number(prev.height_cm)) ? prev.height_cm : ""),
+        weight_kg: p.weight_kg ? String(p.weight_kg) : (!isNaN(Number(prev.weight_kg)) ? prev.weight_kg : ""),
         diet_preference: p.diet_preference || prev.diet_preference,
         allergies: p.allergies || m.allergies_list || prev.allergies,
         notes: p.notes || prev.notes,
@@ -287,11 +295,11 @@ export default function SettingsPage() {
                 <Grid size={{ xs: 12, md: 6 }}><TextField fullWidth disabled label="Username" value={form.username} /></Grid>
                 <Grid size={{ xs: 12, md: 6 }}><TextField fullWidth label="Email" value={form.email} onChange={(e) => onChange("email", e.target.value)} /></Grid>
                 <Grid size={{ xs: 12, md: 6 }}><TextField fullWidth label="Phone" value={form.phone} onChange={(e) => onChange("phone", e.target.value)} /></Grid>
-                <Grid size={{ xs: 12, md: 6 }}><TextField fullWidth label="Age" value={form.age} onChange={(e) => onChange("age", e.target.value)} /></Grid>
+                <Grid size={{ xs: 12, md: 6 }}><TextField fullWidth type="number" label="Age" value={form.age} onChange={(e) => onChange("age", e.target.value)} /></Grid>
                 <Grid size={{ xs: 12, md: 6 }}>
                   <Stack direction="row" spacing={2}>
-                    <TextField fullWidth label="Height (cm)" value={form.height_cm} onChange={(e) => onChange("height_cm", e.target.value)} />
-                    <TextField fullWidth label="Weight (kg)" value={form.weight_kg} onChange={(e) => onChange("weight_kg", e.target.value)} />
+                    <TextField fullWidth type="number" label="Height (cm)" value={form.height_cm} onChange={(e) => onChange("height_cm", e.target.value)} />
+                    <TextField fullWidth type="number" label="Weight (kg)" value={form.weight_kg} onChange={(e) => onChange("weight_kg", e.target.value)} />
                   </Stack>
                 </Grid>
                 <Grid size={{ xs: 12 }}>
@@ -383,15 +391,15 @@ export default function SettingsPage() {
             {savedAccounts.length === 0 && <Typography color="textSecondary">No other saved accounts.</Typography>}
             <List>
                {savedAccounts.map((acc, idx) => (
-                  <ListItem button key={idx} onClick={() => handleSwitchAccountSelect(acc)}>
+                  <ListItemButton key={idx} onClick={() => handleSwitchAccountSelect(acc)}>
                      <ListItemIcon><Person /></ListItemIcon>
                      <ListItemText primary={acc.username} secondary={acc.email} />
-                  </ListItem>
+                  </ListItemButton>
                ))}
-               <ListItem button onClick={() => { logout(); window.location.href = '/login'; }}>
+               <ListItemButton onClick={() => { logout(); window.location.href = '/login'; }}>
                   <ListItemIcon><ExitToApp color="primary" /></ListItemIcon>
                   <ListItemText primary="Add New Account" />
-               </ListItem>
+               </ListItemButton>
             </List>
          </DialogContent>
          <DialogActions>

@@ -144,6 +144,21 @@ export default function DashboardPage() {
     }
   };
 
+  const [labsCount, setLabsCount] = useState<number>(0);
+  const [loadingLabs, setLoadingLabs] = useState(true);
+
+  const loadLabsCount = async () => {
+    setLoadingLabs(true);
+    try {
+      const data = await apiFetch<any[]>("/documents/?type=lab_result", { method: "GET" });
+      setLabsCount(Array.isArray(data) ? data.length : 0);
+    } catch {
+      setLabsCount(0);
+    } finally {
+      setLoadingLabs(false);
+    }
+  };
+
   const loadProgress = async () => {
     setLoadingProgress(true);
     setNotice("");
@@ -169,6 +184,7 @@ export default function DashboardPage() {
   useEffect(() => {
     loadProgress();
     loadMedsCount();
+    loadLabsCount();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -303,7 +319,7 @@ export default function DashboardPage() {
               <MetricCard title="Medications" value={loadingMeds ? "Loading..." : `${medsCount} Active`} icon={<MedicationIcon color="primary" />} hint="Add meds to track" />
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <MetricCard title="Lab Results" value="0 Uploaded" icon={<ScienceIcon color="secondary" />} hint="Upload PDF reports" />
+              <MetricCard title="Lab Results" value={loadingLabs ? "Loading..." : `${labsCount} Uploaded`} icon={<ScienceIcon color="secondary" />} hint="Upload PDF reports" />
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <MetricCard title="AI Insights" value="Ready" icon={<InsightsIcon color="success" />} hint="Consent required" />

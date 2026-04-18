@@ -45,6 +45,7 @@ import {
   MailOutline,
   LiveHelp,
   Schedule,
+  DeleteForever,
 } from "@mui/icons-material";
 
 type FormState = {
@@ -265,6 +266,17 @@ export default function SupportPage() {
       setToast({ open: true, msg: e.message || "Could not submit ticket. Please try again.", type: "error" });
     } finally {
       setSending(false);
+    }
+  };
+
+  const deleteTicket = async (id: number) => {
+    if (!window.confirm("Are you sure you want to delete this ticket?")) return;
+    try {
+      await apiFetch(`/support-tickets/${id}/`, { method: "DELETE" });
+      setToast({ open: true, msg: "Ticket deleted successfully.", type: "success" });
+      fetchTickets();
+    } catch (e: any) {
+      setToast({ open: true, msg: e.message || "Failed to delete ticket.", type: "error" });
     }
   };
 
@@ -785,6 +797,7 @@ export default function SupportPage() {
                     <Box component="th" sx={{ textAlign: "left", p: 1.5, borderBottom: `1px solid ${alpha(theme.palette.text.primary, 0.1)}`, fontWeight: 900 }}>Category</Box>
                     <Box component="th" sx={{ textAlign: "left", p: 1.5, borderBottom: `1px solid ${alpha(theme.palette.text.primary, 0.1)}`, fontWeight: 900 }}>Priority</Box>
                     <Box component="th" sx={{ textAlign: "left", p: 1.5, borderBottom: `1px solid ${alpha(theme.palette.text.primary, 0.1)}`, fontWeight: 900 }}>Status</Box>
+                    <Box component="th" sx={{ textAlign: "right", p: 1.5, borderBottom: `1px solid ${alpha(theme.palette.text.primary, 0.1)}`, fontWeight: 900 }}>Actions</Box>
                   </tr>
                 </thead>
                 <tbody>
@@ -806,6 +819,13 @@ export default function SupportPage() {
                           variant="outlined"
                           sx={{ borderRadius: 0, fontWeight: 950, height: 20, fontSize: 10 }} 
                         />
+                      </Box>
+                      <Box component="td" sx={{ p: 1.5, borderBottom: `1px solid ${alpha(theme.palette.text.primary, 0.05)}`, textAlign: "right" }}>
+                        <Tooltip title="Delete Ticket">
+                          <IconButton size="small" color="error" onClick={() => deleteTicket(t.id)}>
+                            <DeleteForever fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
                       </Box>
                     </tr>
                   ))}

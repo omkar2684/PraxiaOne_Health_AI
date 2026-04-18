@@ -10,7 +10,7 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body>
         {/* ✅ Fixes MUI + Emotion SSR hydration mismatch in Next.js App Router */}
         <AppRouterCacheProvider options={{ enableCssLayer: true }}>

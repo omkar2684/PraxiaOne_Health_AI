@@ -126,6 +126,7 @@ export default function HealthAIPage() {
           const mapped = history.map(h => ({
             role: h.role,
             text: h.text,
+            results: h.meta_data?.results,
             timestamp: new Date(h.created_at)
           }));
           setMessages(mapped);

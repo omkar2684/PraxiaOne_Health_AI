@@ -145,8 +145,18 @@ export async function apiFetch<T>(
   }
 
   if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(txt || `Request failed (${res.status})`);
+    const raw = await res.text();
+    let msg = `Request failed (${res.status})`;
+    try {
+      const json = JSON.parse(raw);
+      if (json.detail) msg = json.detail;
+      else if (typeof json === 'object') {
+        const firstKey = Object.keys(json)[0];
+        const val = json[firstKey];
+        msg = Array.isArray(val) ? val[0] : (typeof val === 'string' ? val : raw);
+      }
+    } catch { msg = raw || msg; }
+    throw new Error(msg);
   }
 
   if (res.status === 204) return {} as T;
@@ -200,8 +210,21 @@ export async function register(payload: {
   });
 
   if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(txt || `Register failed (${res.status})`);
+    const raw = await res.text();
+    let msg = `Register failed (${res.status})`;
+    try {
+      const json = JSON.parse(raw);
+      // DRF commonly returns { "fieldname": ["error"] } or { "detail": "error" }
+      if (json.detail) msg = json.detail;
+      else if (typeof json === 'object') {
+        const firstKey = Object.keys(json)[0];
+        const val = json[firstKey];
+        msg = Array.isArray(val) ? val[0] : (typeof val === 'string' ? val : raw);
+      }
+    } catch {
+      msg = raw || msg;
+    }
+    throw new Error(msg);
   }
 
   const data = (await res.json()) as RegisterResponse;

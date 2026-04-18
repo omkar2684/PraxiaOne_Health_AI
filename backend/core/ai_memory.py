@@ -208,14 +208,13 @@ def search_user_docs(*, user_id: int, query: str, limit: int = 15, doc_id: Optio
     qfilter = Filter(must=must_conditions)
 
     try:
-        # Using query_points for compatibility with modern qdrant-client
-        results = client.query_points(
+        results = client.search(
             collection_name=collection,
-            query=query_vec,
+            query_vector=query_vec,
             query_filter=qfilter,
             limit=limit,
             with_payload=True
-        ).points
+        )
         
         print(f"\n[QDRANT SEARCH] Found {len(results)} chunks for User {user_id} (doc_id={doc_id})")
         
@@ -241,13 +240,13 @@ def search_user_memories(*, user_id: int, query: str, limit: int = 5) -> List[Di
         FieldCondition(key="source", match=MatchValue(value="memory")),
     ])
     try:
-        results = client.query_points(
+        results = client.search(
             collection_name=collection, 
-            query=query_vec, 
+            query_vector=query_vec, 
             query_filter=qfilter, 
             limit=limit, 
             with_payload=True
-        ).points
+        )
         return [{"id": r.id, "score": r.score, "text": r.payload.get("text", "")} for r in results]
     except Exception: return []
 
