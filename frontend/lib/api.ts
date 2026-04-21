@@ -198,6 +198,9 @@ export async function register(payload: {
   username: string;
   email?: string;
   password: string;
+  full_name?: string;
+  phone_number?: string;
+  allergies?: string;
   age?: number | null;
   gender?: string;
 }): Promise<RegisterResponse> {

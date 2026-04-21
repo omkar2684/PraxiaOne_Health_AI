@@ -11,7 +11,7 @@ services:
       MYSQL_PASSWORD: StrongPass@123
       MYSQL_ROOT_PASSWORD: RootStrongPass@123
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:

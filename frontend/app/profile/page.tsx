@@ -101,6 +101,8 @@ function toBackend(u: UiProfile): BackendProfile {
     weight_kg: Number.isFinite(w as any) ? (w as any) : null,
     diet_preference: u.diet_preference || "",
     notes: u.notes || "",
+    allergies: u.allergies || "",
+    phone_number: u.phone_number || "",
   };
 }
 

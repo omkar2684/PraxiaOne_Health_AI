@@ -1,10 +1,6 @@
 =============================================================
 PRAXIAONE - PORT MAPPING & CONNECTION GUIDE
 =============================================================
-
-This document explains what ports are open on your Friend's PC (the Host)
-and how they connect to the Docker containers running inside it.
-
 -------------------------------------------------------------
 1. THE VISIBLE PORTS (What your phone/laptop connects to)
 -------------------------------------------------------------

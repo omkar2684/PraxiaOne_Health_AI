@@ -9,7 +9,7 @@ import {
   Box, Card, CardContent, Typography, Stack, Chip, Button, Divider, Grid, TextField,
   InputAdornment, Switch, FormControlLabel, Snackbar, Alert, Paper, Avatar, IconButton,
   Dialog, DialogTitle, DialogContent, DialogActions,
-  Accordion, AccordionSummary, AccordionDetails, List, ListItem, ListItemIcon, ListItemText
+  Accordion, AccordionSummary, AccordionDetails, List, ListItem, ListItemButton, ListItemIcon, ListItemText
 } from "@mui/material";
 import {
   Settings as SettingsIcon, Mail, Phone, Person, Security, Notifications,
