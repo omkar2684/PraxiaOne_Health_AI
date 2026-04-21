@@ -1,0 +1,55 @@
+=============================================================
+PRAXIAONE - PORT MAPPING & CONNECTION GUIDE
+=============================================================
+
+This document explains what ports are open on your Friend's PC (the Host)
+and how they connect to the Docker containers running inside it.
+
+-------------------------------------------------------------
+1. THE VISIBLE PORTS (What your phone/laptop connects to)
+-------------------------------------------------------------
+These are the ports that are open to the network. You access these
+using your friend's PC IP address (e.g., http://100.81.211.11:<PORT>).
+
+- PORT 3010 : Next.js Web Dashboard.
+              (If you want to view the website, go to port 3010)
+
+- PORT 8010 : Django API Backend.
+              (Your flutter app and website send data to this port)
+
+- PORT 3306 : MySQL Database.
+              (Useful if you want to connect a tool like DBeaver or DataGrip)
+
+- PORT 6333 : Qdrant Vector Database.
+              (Handles AI memory storage)
+
+- PORT 11434: Ollama LLM Server.
+              (Handles the AI Chatbot inference)
+
+- PORT 6379 : Redis Cache.
+              (Used by Celery for background tasks)
+
+-------------------------------------------------------------
+2. THE INTERNAL DOCKER PORTS (What is running inside)
+-------------------------------------------------------------
+When a request hits your friend's PC on an external port, Docker 
+secretly routes it to the true port running inside the container.
+
+- External 3010 routes to -> Internal 3000 (React Container)
+- External 8010 routes to -> Internal 8000 (Django Container)
+- External 3306 routes to -> Internal 3306 (MySQL Container)
+- External 6333 routes to -> Internal 6333 (Qdrant Container)
+- External 11434 routes to -> Internal 11434 (Ollama Container)
+- External 6379 routes to -> Internal 6379 (Redis Container)
+
+-------------------------------------------------------------
+HOW THEY TALK TO EACH OTHER:
+-------------------------------------------------------------
+- The Flutter App talks directly to 100.81.211.11:8010
+- The Next.js Website talks directly to 100.81.211.11:8010
+- The Django Backend talks to MySQL internally using the hostname 'db' on port 3306.
+- The Django Backend talks to Qdrant internally using 'http://qdrant:6333'.
+- The Django Backend talks to Ollama internally using 'http://ollama:11434'.
+
+If any service fails to connect, check your friend's firewall to ensure 
+ports 3010 and 8010 are allowed for inbound traffic!

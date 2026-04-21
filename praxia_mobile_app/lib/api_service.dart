@@ -7,7 +7,7 @@ class ApiService {
   // DEPLOYMENT SETTING:
   // REPLACE THIS IP WITH YOUR FRIEND'S PC IP OR MENTOR'S SERVER IP
   // (If configuring HTTPS in production: 'https://api.yourdomain.com/api')
-  static const String serverIp = '100.81.211.11'; // <--- CHANGE THIS
+  static const String serverIp = '72.60.163.124'; // <--- CHANGE THIS
   static const String baseUrl = 'http://$serverIp:8010/api';
   // -------------------------------------------------------------
 

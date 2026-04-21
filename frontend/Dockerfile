@@ -6,7 +6,7 @@ WORKDIR /app
 
 # Copy the package files and install dependencies
 COPY package.json package-lock.json* ./
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 # Copy all the remaining Next.js source code into the container
 COPY . .
