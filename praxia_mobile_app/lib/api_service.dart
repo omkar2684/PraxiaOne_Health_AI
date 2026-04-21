@@ -3,8 +3,13 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  // Use your computer's local IP address so physical devices on WiFi can reach it
-  static const String baseUrl = 'http://192.168.29.189:8000/api';
+  // -------------------------------------------------------------
+  // DEPLOYMENT SETTING:
+  // REPLACE THIS IP WITH YOUR FRIEND'S PC IP OR MENTOR'S SERVER IP
+  // (If configuring HTTPS in production: 'https://api.yourdomain.com/api')
+  static const String serverIp = '100.81.211.11'; // <--- CHANGE THIS
+  static const String baseUrl = 'http://$serverIp:8010/api';
+  // -------------------------------------------------------------
 
   static Future<Map<String, dynamic>> login(String username, String password) async {
     // --- MOCK LOGIN BYPASS FOR DEMOS ---

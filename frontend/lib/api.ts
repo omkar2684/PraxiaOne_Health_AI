@@ -1,7 +1,7 @@
 "use client";
 
-const API_BASE = "http://localhost:8000/api";
-const API_ORIGIN = "http://localhost:8000";
+const API_ORIGIN = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = `${API_ORIGIN}/api`;
 
 export type TokenPair = { access: string; refresh?: string };
 
