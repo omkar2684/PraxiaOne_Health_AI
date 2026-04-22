@@ -11,6 +11,10 @@ RUN npm install --legacy-peer-deps
 # Copy all the remaining Next.js source code into the container
 COPY . .
 
+# Add ARG and ENV so Next.js can read it during npm run build
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 # Build the optimal production bundle
 RUN npm run build
 

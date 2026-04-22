@@ -11,7 +11,7 @@ services:
       MYSQL_PASSWORD: StrongPass@123
       MYSQL_ROOT_PASSWORD: RootStrongPass@123
     ports:
-      - "3307:3306"
+      - "33099:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
@@ -23,7 +23,7 @@ services:
   redis:
     image: redis:alpine
     ports:
-      - "6379:6379"
+      - "46379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -33,16 +33,23 @@ services:
   qdrant:
     image: qdrant/qdrant:latest
     ports:
-      - "6333:6333"
+      - "46333:6333"
     volumes:
       - qdrant_storage:/qdrant/storage
 
   ollama:
     image: ollama/ollama:latest
     ports:
-      - "11434:11434"
+      - "11435:11434"
     volumes:
       - ollama_storage:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
   # ----------------------------------------------------
   # 2. BACKEND LAYER (Django API + RAG Engine)
@@ -105,13 +112,15 @@ services:
     build: 
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:8010
     restart: always
     ports:
       - "3010:3000"
     depends_on:
       - backend
     environment:
-      - NEXT_PUBLIC_API_URL=http://72.60.163.124:8010
+      - NEXT_PUBLIC_API_URL=http://localhost:8010
 
 volumes:
   mysql_data:
