@@ -43,13 +43,7 @@ services:
       - "11435:11434"
     volumes:
       - ollama_storage:/root/.ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+  
 
   # ----------------------------------------------------
   # 2. BACKEND LAYER (Django API + RAG Engine)
@@ -113,14 +107,14 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_API_URL=http://localhost:8010
+        - NEXT_PUBLIC_API_URL=http://72.60.163.124:8010
     restart: always
     ports:
       - "3010:3000"
     depends_on:
       - backend
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8010
+      - NEXT_PUBLIC_API_URL=http://72.60.163.124:8010
 
 volumes:
   mysql_data:
