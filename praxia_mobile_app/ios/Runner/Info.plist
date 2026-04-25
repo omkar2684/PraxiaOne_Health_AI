@@ -49,5 +49,10 @@
 	<string>We will sync your health metrics to your PraxiaOne dashboard to construct accurate clinical forecasts.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>We will securely sync your data with PraxiaOne to generate optimal recommendations.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 </dict>
 </plist>
