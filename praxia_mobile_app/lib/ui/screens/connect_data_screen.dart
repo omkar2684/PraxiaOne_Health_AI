@@ -17,6 +17,7 @@ class _ConnectDataScreenState extends State<ConnectDataScreen> {
   final List<dynamic> _scannedDevices = [];
   bool _isScanning = false;
   final Map<String, String> _pairStatus = {};
+  Map<String, dynamic>? _riskFactors;
 
   final List<Map<String, dynamic>> staticItems = [
     {
@@ -45,6 +46,12 @@ class _ConnectDataScreenState extends State<ConnectDataScreen> {
   @override
   void initState() {
     super.initState();
+    _loadRiskFactors();
+  }
+
+  Future<void> _loadRiskFactors() async {
+    final factors = await ApiService.getRiskFactors();
+    if (mounted) setState(() => _riskFactors = factors);
   }
 
   Future<void> _startScan() async {
@@ -179,6 +186,8 @@ class _ConnectDataScreenState extends State<ConnectDataScreen> {
                         child: Text('DOCUMENT UPLOADS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.2)),
                       ),
                       ...staticItems.asMap().entries.map((entry) => _buildItemCard(entry.value, entry.key, staticItems.length)).toList(),
+
+                      if (_riskFactors != null) _buildRiskFactorsCard(),
                     ],
                   ),
                 ],
@@ -319,6 +328,86 @@ class _ConnectDataScreenState extends State<ConnectDataScreen> {
         style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), minimumSize: Size.zero),
         icon: Text(label, style: TextStyle(color: isConnected ? const Color(0xFF2E7D5E) : Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
         label: Icon(icon, color: isConnected ? const Color(0xFF2E7D5E) : Colors.white, size: 14),
+      ),
+    );
+  }
+
+  Widget _buildRiskFactorsCard() {
+    final factors = _riskFactors?['factors'] as List<dynamic>? ?? [];
+    return Padding(
+      padding: const EdgeInsets.only(top: 24, bottom: 12),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 10, offset: const Offset(0, 3))],
+          border: Border.all(color: const Color(0xFFF1F5F9), width: 2),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                      const SizedBox(width: 8),
+                      const Text('Data Synthesis', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1D3B5A))),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: factors.map((f) => Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF7ED),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.shade200),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('${f['name']}: ', style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF9A3412), fontSize: 13)),
+                          Text('${f['status']}', style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF9A3412), fontSize: 13)),
+                        ],
+                      ),
+                    )).toList(),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _riskFactors?['warning_message'] ?? 'These combined factors are increasing your cardiovascular risk.',
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red, fontSize: 14),
+                  ),
+                ],
+              ),
+            ),
+            Theme(
+              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                iconColor: const Color(0xFF2E7D5E),
+                collapsedIconColor: Colors.grey,
+                title: Text(
+                  _riskFactors?['explanation_title'] ?? 'Why am I seeing this?',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF2E7D5E)),
+                ),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                    child: Text(
+                      _riskFactors?['explanation_text'] ?? '',
+                      style: const TextStyle(color: Colors.black87, height: 1.5, fontSize: 13),
+                    ),
+                  )
+                ],
+              ),
+            )
+          ],
+        ),
       ),
     );
   }

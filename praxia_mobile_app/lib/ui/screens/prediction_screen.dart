@@ -39,7 +39,7 @@ class _ForecastScreenState extends State<ForecastScreen> {
     if (_isLoading) {
       return Scaffold(
         drawer: const AppDrawer(),
-        appBar: AppBar(title: const Text('8-Week Forecast', style: TextStyle(color: AppColors.accent))),
+        appBar: AppBar(title: const Text('Health Projection', style: TextStyle(color: AppColors.accent))),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
@@ -67,50 +67,55 @@ class _ForecastScreenState extends State<ForecastScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // TOP CARD
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 5))],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('If nothing changes', style: TextStyle(fontSize: 16, color: Colors.black87, fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      const Text('Score', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: Colors.black87)),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.arrow_forward_rounded, color: Colors.grey, size: 20),
-                      const SizedBox(width: 8),
-                      Container(
-                        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Colors.red, width: 2))),
-                        child: Text(scoreStr, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.red)),
-                      ),
-                    ],
+            // PROJECTION CARDS
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
+                      border: Border.all(color: Colors.red.shade100, width: 2),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Current Trend', style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        Text(
+                          _forecastData?['projection_current_trend'] ?? '+32% metabolic risk (9 months)',
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.red),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 24),
-                  // CHART
-                  SizedBox(
-                    height: 200,
-                    width: double.infinity,
-                    child: CustomPaint(painter: ChartPainter(
-                      dataPoints: (_forecastData?['historical_trends'] as List<dynamic>?)?.map((e) => (e as num).toDouble()).toList() ?? [50.0, 55.0, 60.0, 62.0, 68.0, 72.0],
-                    )),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
+                      border: Border.all(color: Colors.green.shade100, width: 2),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('With Changes', style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        Text(
+                          _forecastData?['projection_with_changes'] ?? 'Reduced to +12%',
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.green),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Today', style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w500)),
-                      const Text('8 wks', style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w500)),
-                    ],
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
 
             const SizedBox(height: 32),
@@ -137,7 +142,7 @@ class _ForecastScreenState extends State<ForecastScreen> {
 
             const SizedBox(height: 32),
             PraxiaButton(
-              text: 'Simulate Changes', 
+              text: 'View Action Plan', 
               onPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const RecommendationScreen()))
             ),
             const SizedBox(height: 40),

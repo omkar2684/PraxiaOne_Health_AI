@@ -22,6 +22,8 @@ from .views import (
     SettingsProfileView,
     JourneyFlowView,
     ForecastView,
+    RecommendationsView,
+    RiskFactorsView,
     VitalsExportView,
     GeneratePDFView,
     LogoutView,
@@ -51,6 +53,8 @@ urlpatterns = [
     path("vitals/export/", VitalsExportView.as_view(), name="vitals-export"),
     path("journey/", JourneyFlowView.as_view(), name="journey-flow"),
     path("forecast/", ForecastView.as_view(), name="forecast"),
+    path("health/recommendations/", RecommendationsView.as_view(), name="recommendations"),
+    path("health/risk-factors/", RiskFactorsView.as_view(), name="risk-factors"),
 
     path("documents/", DocumentsView.as_view()),
     path("documents/<int:doc_id>/delete/", DeleteDocumentView.as_view()),

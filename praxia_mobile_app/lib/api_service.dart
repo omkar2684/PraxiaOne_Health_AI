@@ -276,33 +276,27 @@ class ApiService {
     return [
       {
         'id': 1,
-        'title': 'Walk 30 Minutes Daily',
+        'title': 'Increase Sleep Consistency',
         'subtitle': 'Highest impact to improve score and reduce glucose risk',
         'description': 'Walking after meals helps regulate blood sugar levels and improves cardiovascular health.',
-        'impact_pts': 8,
-        'impact_glucose': -20,
-        'impact_weeks': 8,
-        'icon': 'walk'
+        'impact_text': 'reduce glucose variability',
+        'icon': 'sleep'
       },
       {
         'id': 2,
-        'title': 'Low Carb Focus',
+        'title': 'Reduce Saturated Fat Intake',
         'subtitle': 'Stabilize morning glucose spikes',
         'description': 'Reducing processed carbohydrates in your dinner can significantly improve fasting glucose stability.',
-        'impact_pts': 12,
-        'impact_glucose': -15,
-        'impact_weeks': 4,
+        'impact_text': 'LDL ↓ 10–15%',
         'icon': 'food'
       },
       {
         'id': 3,
-        'title': 'Sleep Hygiene',
+        'title': 'Daily Walking (20 min)',
         'subtitle': 'Improve recovery and hormone balance',
         'description': 'Maintaining a consistent sleep schedule (7-8 hours) lowers cortisol and helps body weight management.',
-        'impact_pts': 5,
-        'impact_glucose': -5,
-        'impact_weeks': 2,
-        'icon': 'sleep'
+        'impact_text': 'cardiovascular risk ↓',
+        'icon': 'walk'
       }
     ]; // Default if backend fails
   }
@@ -363,6 +357,27 @@ class ApiService {
             "tag": "Bedtime Routine",
             "description": "Try to go to bed and wake up at the same time each day for better endocrine recovery."
         }
+    };
+  }
+
+  static Future<Map<String, dynamic>> getRiskFactors() async {
+    final token = await getToken();
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/health/risk-factors/'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
+    } catch (_) {}
+    return {
+      "factors": [
+          {"name": "LDL", "status": "Elevated"},
+          {"name": "Sleep", "status": "Irregular"},
+          {"name": "Activity", "status": "Low"}
+      ],
+      "warning_message": "These combined factors are increasing your cardiovascular risk.",
+      "explanation_title": "Why am I seeing this?",
+      "explanation_text": "Based on your recent lab results, wearable sleep data, and daily step count, our AI detects a pattern that correlates with elevated cardiovascular risk. Improving your sleep consistency and adding 20 minutes of daily activity can help stabilize your LDL and overall metabolic health."
     };
   }
 

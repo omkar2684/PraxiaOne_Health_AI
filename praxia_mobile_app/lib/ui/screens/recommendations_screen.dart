@@ -126,32 +126,17 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
           
           // Impact Card
           Container(
+            width: double.infinity,
             decoration: BoxDecoration(color: const Color(0xFFFAFBFB), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFF0F1F2))),
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
             child: Column(
               children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  decoration: const BoxDecoration(color: Color(0xFFF8F9FA), border: Border(bottom: BorderSide(color: Color(0xFFF0F1F2)))),
-                  child: Text('Impact in ${rec['impact_weeks']} weeks', textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 12)),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 20),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      Row(children: [
-                        const Icon(Icons.arrow_upward, color: AppColors.primary, size: 20),
-                        const SizedBox(width: 8),
-                        Text('+${rec['impact_pts']} pts', style: const TextStyle(color: AppColors.primary, fontSize: 20, fontWeight: FontWeight.bold)),
-                      ]),
-                      Container(width: 1, height: 30, color: const Color(0xFFE2E8F0)),
-                      Row(children: [
-                        Text('${rec['impact_glucose']}% ', style: const TextStyle(color: AppColors.primary, fontSize: 20, fontWeight: FontWeight.bold)),
-                        const Text('Glucose', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                      ]),
-                    ],
-                  ),
+                const Text('Expected Impact', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 12)),
+                const SizedBox(height: 12),
+                Text(
+                  rec['impact_text'] ?? 'Improves general wellness', 
+                  style: const TextStyle(color: AppColors.primary, fontSize: 18, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
                 ),
               ],
             ),
@@ -178,6 +163,38 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
           TextButton(
             onPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const JourneyFlowScreen())), 
             child: const Text('Explore Other Actions', style: TextStyle(color: Colors.grey, decoration: TextDecoration.underline, fontWeight: FontWeight.bold))
+          ),
+          
+          const SizedBox(height: 24),
+          const Text('Re-test recommended in 60 days', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 14)),
+          const SizedBox(height: 16),
+          
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {},
+              icon: const Icon(Icons.medical_services_outlined, color: AppColors.primary),
+              label: const Text('Consult a Provider', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                side: const BorderSide(color: AppColors.primary, width: 2),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {},
+              icon: const Icon(Icons.upload_file_rounded, color: AppColors.primary),
+              label: const Text('Upload Updated Lab Results', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                side: const BorderSide(color: AppColors.primary, width: 2),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
           ),
           
           const SizedBox(height: 32),

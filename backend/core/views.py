@@ -312,6 +312,8 @@ class ForecastView(APIView):
             "current_score": 72,
             "forecast_score": 72,
             "historical_trends": [50.0, 52.0, 55.0, 60.0, 62.0, 65.0, 68.0, 72.0],
+            "projection_current_trend": "+32% metabolic risk (9 months)",
+            "projection_with_changes": "Reduced to +12%",
             "recommendations": [
                 {"label": "Walk 30 min/day", "score": "82", "assetPath": "public/prediction_screen/activity.png"},
                 {"label": "Improve Sleep", "score": "85", "assetPath": "public/prediction_screen/improve_sleep.png"}
@@ -322,6 +324,50 @@ class ForecastView(APIView):
                 "tag": "Bedtime Routine",
                 "description": "Try to go to bed and wake up at the same time each day for better endocrine recovery."
             }
+        })
+
+class RecommendationsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    def get(self, request):
+        return Response([
+            {
+                'id': 1,
+                'title': 'Increase Sleep Consistency',
+                'subtitle': 'Highest impact to improve score and reduce glucose risk',
+                'description': 'Walking after meals helps regulate blood sugar levels and improves cardiovascular health.',
+                'impact_text': 'reduce glucose variability',
+                'icon': 'sleep'
+            },
+            {
+                'id': 2,
+                'title': 'Reduce Saturated Fat Intake',
+                'subtitle': 'Stabilize morning glucose spikes',
+                'description': 'Reducing processed carbohydrates in your dinner can significantly improve fasting glucose stability.',
+                'impact_text': 'LDL ↓ 10–15%',
+                'icon': 'food'
+            },
+            {
+                'id': 3,
+                'title': 'Daily Walking (20 min)',
+                'subtitle': 'Improve recovery and hormone balance',
+                'description': 'Maintaining a consistent sleep schedule (7-8 hours) lowers cortisol and helps body weight management.',
+                'impact_text': 'cardiovascular risk ↓',
+                'icon': 'walk'
+            }
+        ])
+
+class RiskFactorsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    def get(self, request):
+        return Response({
+            "factors": [
+                {"name": "LDL", "status": "Elevated"},
+                {"name": "Sleep", "status": "Irregular"},
+                {"name": "Activity", "status": "Low"}
+            ],
+            "warning_message": "These combined factors are increasing your cardiovascular risk.",
+            "explanation_title": "Why am I seeing this?",
+            "explanation_text": "Based on your recent lab results, wearable sleep data, and daily step count, our AI detects a pattern that correlates with elevated cardiovascular risk. Improving your sleep consistency and adding 20 minutes of daily activity can help stabilize your LDL and overall metabolic health."
         })
 
 class VitalsExportView(APIView):
