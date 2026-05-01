@@ -69,7 +69,7 @@ services:
       - QDRANT_URL=http://qdrant:6333
       - OLLAMA_URL=http://host.docker.internal:11434
     command: >
-      sh -c "python manage.py migrate && python seed_sample_data.py || true && gunicorn praxiaone.wsgi:application --bind 0.0.0.0:8000"
+      sh -c "python manage.py migrate && python seed_sample_data.py || true && gunicorn praxiaone.wsgi:application --bind 0.0.0.0:8000 --timeout 300"
 
   celery_worker:
     build:

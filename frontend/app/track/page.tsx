@@ -156,7 +156,7 @@ export default function TrackProgressPage() {
 
       <Grid container spacing={3}>
         {/* Left Column */}
-        <Grid item xs={12} lg={8}>
+        <Grid size={{ xs: 12, lg: 8 }}>
           {/* Section 1: Weekly Summary */}
           <Card sx={{ ...surfaceCard, mb: 3 }}>
             <CardContent sx={{ p: { xs: 2.5, md: 4 } }}>
@@ -236,7 +236,7 @@ export default function TrackProgressPage() {
           </Card>
         </Grid>
 
-        <Grid item xs={12} lg={4}>
+        <Grid size={{ xs: 12, lg: 4 }}>
           {/* Section 3: AI Behavior Insight */}
           <Card sx={{ ...surfaceCard, mb: 3 }}>
             <CardContent>
