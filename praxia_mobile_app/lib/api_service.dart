@@ -7,8 +7,8 @@ class ApiService {
   // DEPLOYMENT SETTING:
   // REPLACE THIS IP WITH YOUR FRIEND'S PC IP OR MENTOR'S SERVER IP
   // (If configuring HTTPS in production: 'https://api.yourdomain.com/api')
-  static const String serverIp = '72.60.163.124'; // <--- CHANGE THIS
-  static const String baseUrl = 'http://$serverIp:8010/api';
+  static const String serverIp = '10.0.2.2'; // Android Emulator localhost
+  static const String baseUrl = 'http://$serverIp:8000/api';
   // -------------------------------------------------------------
 
   static Future<Map<String, dynamic>> login(String username, String password) async {
@@ -187,6 +187,25 @@ class ApiService {
   }
 
   // ─── REAL DATA FETCHING ──────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> getTrackProgress() async {
+    final token = await getToken();
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/track-progress/'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
+    } catch (_) {}
+    // Fallback if backend isn't reachable
+    return {
+      "weekly_summary": {"completed": 0, "partial": 0, "not_started": 0, "progress_percent": 0, "total": 0},
+      "actions": [],
+      "insights": [],
+      "projection": {"text": "Unable to connect", "subtext": "Please check your network"},
+      "re_test": {"days_left": 0, "text": "Unable to connect"}
+    };
+  }
 
   static Future<Map<String, dynamic>> getHealthScore() async {
     final token = await getToken();

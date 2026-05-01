@@ -1,7 +1,7 @@
 #!/bin/bash
 echo "--- PRAXIA ONE DOCKER SERVER STARTING (LINUX/MAC) ---"
 docker-compose up --build -d
-echo "--- ALL SERVICES STARTING ON HOST 72.60.163.124 (App: 3010, DB: 8010) ---"
+echo "--- ALL SERVICES STARTING ON HOST localhost (App: 3010, DB: 8010) ---"
 echo "Waiting 15 seconds for Ollama server to initialize inside the container..."
 sleep 15
 

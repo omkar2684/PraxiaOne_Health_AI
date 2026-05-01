@@ -391,6 +391,39 @@ class HealthScoreView(APIView):
             ]
         })
 
+class TrackProgressView(APIView):
+    permission_classes = [permissions.AllowAny]
+    def get(self, request):
+        return Response({
+            "weekly_summary": {
+                "completed": 3,
+                "partial": 1,
+                "not_started": 1,
+                "progress_percent": 60,
+                "total": 5
+            },
+            "actions": [
+                {"id": 1, "icon": "directions_walk", "title": "Walk 20 minutes daily", "subtext": "4 of 5 days completed", "status": "On Track", "status_color": "success", "color_hex": "#10B981"},
+                {"id": 2, "icon": "cake", "title": "Reduce sugar intake", "subtext": "Improved, but above target", "status": "Partial", "status_color": "warning", "color_hex": "#F59E0B"},
+                {"id": 3, "icon": "water_drop", "title": "Drink 8 glasses of water", "subtext": "3 of 5 days completed", "status": "Partial", "status_color": "warning", "color_hex": "#3B82F6"},
+                {"id": 4, "icon": "fitness_center", "title": "Strength training 2x per week", "subtext": "Completed 2 of 2 this week", "status": "On Track", "status_color": "success", "color_hex": "#8B5CF6"},
+                {"id": 5, "icon": "event", "title": "Schedule follow-up lab test", "subtext": "Not started", "status": "Not Started", "status_color": "error", "color_hex": "#EF4444", "is_actionable": True}
+            ],
+            "insights": [
+                {"icon": "trending_up", "text": "Your activity level increased by 22% this week", "color": "success"},
+                {"icon": "trending_flat", "text": "Sugar intake still fluctuating", "subtext": "Try reducing added sugars", "color": "warning"},
+                {"icon": "bedtime", "text": "You're most consistent on weekdays", "color": "primary"}
+            ],
+            "projection": {
+                "text": "You are on track to improve your glucose levels by your next test.",
+                "subtext": "Based on your current adherence pattern"
+            },
+            "re_test": {
+                "days_left": 18,
+                "text": "Based on your progress, your next lab test is recommended in 18 days."
+            }
+        })
+
 # --- PDF & Auth Endpoints ---
 from io import BytesIO
 from reportlab.pdfgen import canvas

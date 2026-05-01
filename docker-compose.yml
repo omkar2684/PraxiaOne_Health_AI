@@ -107,14 +107,14 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_API_URL=http://72.60.163.124:8010
+        - NEXT_PUBLIC_API_URL=http://localhost:8010
     restart: always
     ports:
       - "3010:3000"
     depends_on:
       - backend
     environment:
-      - NEXT_PUBLIC_API_URL=http://72.60.163.124:8010
+      - NEXT_PUBLIC_API_URL=http://localhost:8010
 
 volumes:
   mysql_data:

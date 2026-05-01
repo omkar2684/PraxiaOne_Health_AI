@@ -16,7 +16,8 @@ import {
   AccountCircle,
   MonitorHeart,
   Shield,
-  MoreVert
+  MoreVert,
+  TrendingUp
 } from "@mui/icons-material";
 import {
   Box,
@@ -36,6 +37,7 @@ const items = [
   ["Data", "/data", <Storage key="str" />],
   ["AI Chat", "/health-ai", <Psychology key="psy" />],
   ["Wearables", "/wearables", <Watch key="wear" />],
+  ["Track Progress", "/track", <TrendingUp key="track" />],
   ["Medications", "/medications", <Medication key="med" />],
   ["Consent", "/consent", <Shield key="cons" />],
   ["Support", "/support", <Help key="sup" />],

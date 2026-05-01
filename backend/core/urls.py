@@ -29,6 +29,7 @@ from .views import (
     LogoutView,
     DeleteAccountView,
     HealthScoreView,
+    TrackProgressView,
 )
 
 from .medication_views import MedicationViewSet
@@ -70,5 +71,6 @@ urlpatterns = [
     path("generate-pdf/", GeneratePDFView.as_view()),
     path("auth/logout/", LogoutView.as_view()),
     path("auth/delete-account/", DeleteAccountView.as_view()),
+    path("track-progress/", TrackProgressView.as_view()),
     path("health-score/", HealthScoreView.as_view(), name="health-score"),
 ]

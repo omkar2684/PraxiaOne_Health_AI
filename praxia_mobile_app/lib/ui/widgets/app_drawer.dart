@@ -13,6 +13,7 @@ import '../screens/settings_screen.dart';
 import '../screens/welcome_screen_v2.dart';
 import '../screens/assistant_screen_v2.dart';
 import '../screens/chat_list_screen.dart';
+import '../screens/track_progress_screen.dart';
 
 class AppDrawer extends StatefulWidget {
   const AppDrawer({Key? key}) : super(key: key);
@@ -108,12 +109,13 @@ class _AppDrawerState extends State<AppDrawer> {
                   
                   _DrawerItem(Icons.door_front_door_outlined, '1. Entry Welcome', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WelcomeScreenV2()))),
                   _DrawerItem(Icons.sensors_outlined, '2. Data Sources', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => DataSourcesScreen()))),
-                  _DrawerItem(Icons.insights_outlined, '3. Health Intelligence', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => HealthScoreScreen()))),
+                  _DrawerItem(Icons.health_and_safety_outlined, '3. Health Intelligence', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => HealthScoreScreen()))),
                   _DrawerItem(Icons.chat_bubble_outline, '4. AI Assistance', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => AssistantScreenV2()))),
                   _DrawerItem(Icons.auto_graph_outlined, '5. Prediction', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => ForecastScreen()))),
                   _DrawerItem(Icons.check_circle_outline, '6. Recommendation', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => RecommendationScreen()))),
                   _DrawerItem(Icons.healing_outlined, '7. Escalation', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => DoctorScreen()))),
                   _DrawerItem(Icons.map_outlined, '8. Journey Flow', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const JourneyFlowScreen()))),
+                  _DrawerItem(Icons.trending_up, 'Track Progress', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const TrackProgressScreen()))),
                   _DrawerItem(Icons.message_outlined, 'Message Portal', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ChatListScreen()))),
                   
                   const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Divider(height: 1)),
