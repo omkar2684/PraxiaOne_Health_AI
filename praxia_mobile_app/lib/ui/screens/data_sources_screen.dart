@@ -31,7 +31,45 @@ class _DataSourcesScreenState extends State<DataSourcesScreen> {
       'name': '5G Device',
       'image': 'public/data_sources_screen/5G_device_logo.png',
     },
+    {
+      'name': 'Bluetooth Device',
+      'image': 'public/data_sources_screen/5G_device_logo.png', // Fallback to 5G logo or similar
+    },
   ];
+
+  bool _isScanning = false;
+  bool _showScanned = false;
+  final List<Map<String, dynamic>> _scannedDevices = [];
+  final Map<String, String> _pairStatus = {};
+
+  Future<void> _startScan() async {
+    setState(() {
+      _isScanning = true;
+      _showScanned = true;
+      _scannedDevices.clear();
+    });
+
+    await Future.delayed(const Duration(seconds: 1));
+    if (mounted) {
+      setState(() {
+        _scannedDevices.add({'name': 'Praxia Smart Ring v2', 'id': 'PR-0824', 'type': 'Simulated'});
+        _scannedDevices.add({'name': 'Oura Ring Gen3', 'id': 'OR-1102', 'type': 'Simulated'});
+      });
+    }
+
+    await Future.delayed(const Duration(seconds: 2));
+    if (mounted) {
+      setState(() {
+        _isScanning = false;
+      });
+    }
+  }
+
+  void _pairDevice(String id) async {
+    setState(() => _pairStatus[id] = 'Pairing...');
+    await Future.delayed(const Duration(seconds: 2));
+    if (mounted) setState(() => _pairStatus[id] = 'Connected');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -119,8 +157,11 @@ class _DataSourcesScreenState extends State<DataSourcesScreen> {
 
   Widget _buildDataSourceItem(Map<String, String> source) {
     bool isAppleHealth = source['name']!.contains('Apple Health');
+    bool isBluetooth = source['name']!.contains('Bluetooth');
     
-    return Padding(
+    return Column(
+      children: [
+        Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
         children: [
@@ -185,10 +226,49 @@ class _DataSourcesScreenState extends State<DataSourcesScreen> {
               ),
               child: const Text('Sync', style: TextStyle(color: Colors.white, fontSize: 12)),
             )
+          else if (isBluetooth)
+            ElevatedButton(
+              onPressed: _isScanning ? null : _startScan,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2E7D5E), 
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                minimumSize: const Size(0, 32),
+              ),
+              child: Text(_isScanning ? 'Scanning...' : 'Scan', style: const TextStyle(color: Colors.white, fontSize: 12)),
+            )
           else
             Icon(Icons.chevron_right, color: Colors.grey.shade400, size: 22),
         ],
       ),
+    ),
+    if (isBluetooth && _showScanned) ..._scannedDevices.map((d) {
+      final status = _pairStatus[d['id']] ?? 'Connect';
+      bool isPaired = status.contains('Connected');
+      return Container(
+        color: const Color(0xFFF9FAFB),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+        child: Row(
+          children: [
+            Icon(Icons.bluetooth, color: isPaired ? Colors.green : Colors.grey, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(d['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1D3B5A))),
+                  Text(d['id'], style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                ],
+              ),
+            ),
+            TextButton(
+              onPressed: status == 'Connect' ? () => _pairDevice(d['id']) : null,
+              child: Text(status, style: TextStyle(color: isPaired ? Colors.green : const Color(0xFF2E7D5E), fontSize: 12, fontWeight: FontWeight.bold)),
+            )
+          ],
+        ),
+      );
+    }).toList(),
+    ],
     );
   }
 

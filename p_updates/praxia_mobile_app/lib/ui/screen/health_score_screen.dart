@@ -8,10 +8,6 @@ import '../components/metrics_widgets.dart';
 import '../components/praxia_button.dart';
 import 'vitals_detail_screen.dart';
 import 'lab_results_screen.dart';
-import 'action_plan_screen.dart';
-import 'recommendations_screen.dart';
-import '../../lab_ai/lab_models.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class HealthScoreScreen extends StatefulWidget {
   const HealthScoreScreen({Key? key}) : super(key: key);
@@ -25,10 +21,7 @@ class _HealthScoreScreenState extends State<HealthScoreScreen> with SingleTicker
   Map<String, dynamic> _vitals = {};
   List<dynamic> _glucoseTrend = [];
   List<dynamic> _activityTrend = [];
-  List<dynamic> _carePlan = []; // active goals
-  List<dynamic> _previewActions = []; // for manage action plans
-  LabInsightsResponse? _actionPlanResponse;
-  String _lastUpdated = '';
+  List<dynamic> _carePlan = [];
   int _currentIndex = 0;
   
   late AnimationController _anim;
@@ -51,46 +44,14 @@ class _HealthScoreScreenState extends State<HealthScoreScreen> with SingleTicker
   Future<void> _loadData() async {
     final sData = await ApiService.getHealthScore();
     final vData = await ApiService.getVitals();
-    final allRecs = await ApiService.getRecommendations() ?? [];
-    
-    final prefs = await SharedPreferences.getInstance();
-    List<dynamic> activeGoals = [];
-    for (var r in allRecs) {
-      if (prefs.getBool('plan_active_${r['id']}') == true) {
-        activeGoals.add(r);
-      }
-    }
     
     if (mounted) {
       setState(() {
-        final now = DateTime.now();
-        final amPm = now.hour >= 12 ? 'PM' : 'AM';
-        final h = now.hour % 12 == 0 ? 12 : now.hour % 12;
-        final m = now.minute.toString().padLeft(2, '0');
-        _lastUpdated = 'Today at $h:$m $amPm';
-
         _score = sData['score'] ?? 0;
         _level = sData['level'] ?? 'Unknown';
         _glucoseTrend = sData['glucose_trend'] ?? [110, 115, 128, 120, 118, 114, 118];
         _activityTrend = sData['activity_trend'] ?? [4000, 5200, 4800, 6100, 6500, 5900, 6240];
-        _carePlan = activeGoals;
-        _previewActions = allRecs.take(2).toList();
-        _actionPlanResponse = LabInsightsResponse(
-          insights: [],
-          actionPlan: allRecs.map((e) {
-            bool active = false;
-            for (var a in activeGoals) {
-              if (a['id'] == e['id']) active = true;
-            }
-            return ActionPlanItem(
-              id: e['id'] as int?,
-              icon: e['icon'] ?? 'star',
-              title: e['title'] ?? '',
-              description: e['description'] ?? '',
-              isActive: active,
-            );
-          }).toList(),
-        );
+        _carePlan = sData['care_plan'] ?? [];
         _vitals = vData;
         _isLoading = false;
         _scoreAnim = Tween<double>(begin: 0, end: _score / 100.0).animate(CurvedAnimation(parent: _anim, curve: Curves.easeOutCubic));
@@ -206,15 +167,6 @@ class _HealthScoreScreenState extends State<HealthScoreScreen> with SingleTicker
         children: [
           const SizedBox(height: 50),
           const Text('Your Health Score', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.sync, size: 14, color: Colors.grey),
-              const SizedBox(width: 4),
-              Text('Last updated: $_lastUpdated', style: const TextStyle(color: Colors.grey, fontSize: 13)),
-            ],
-          ),
           const SizedBox(height: 20),
           // MAIN GAUGE CARD
           Container(
@@ -388,71 +340,13 @@ class _HealthScoreScreenState extends State<HealthScoreScreen> with SingleTicker
             PraxiaButton(text: 'Message My Provider', onPressed: () {}),
           ]),
           const SizedBox(height: 20),
-          
-          PraxiaBox(padding: 20, children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Action Plans', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                TextButton(
-                  onPressed: () {
-                    if (_actionPlanResponse != null) {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => ActionPlanScreen(response: _actionPlanResponse!)));
-                    }
-                  }, 
-                  child: const Text('Manage', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold))
-                )
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (_previewActions.isEmpty)
-              const Text('No actions available.', style: TextStyle(color: Colors.grey)),
-            for (var action in _previewActions)
-              GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RecommendationScreen())),
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 12.0),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFF1F5F9)),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 4))],
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(12)),
-                        child: Icon(action['icon'] == 'sleep' ? Icons.bedtime : action['icon'] == 'food' ? Icons.restaurant : Icons.directions_run, color: AppColors.primary, size: 24),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(action['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E293B))),
-                            const SizedBox(height: 4),
-                            Text(action['description'] ?? '', style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)), maxLines: 2, overflow: TextOverflow.ellipsis),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.chevron_right, color: Colors.grey),
-                    ],
-                  ),
-                ),
-              ),
-          ]),
-          const SizedBox(height: 20),
-          
           PraxiaBox(padding: 20, children: [
             const Text('Active Goals', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             const SizedBox(height: 12),
             if (_carePlan.isEmpty)
-              const Text('No active goals currently. Head to Recommendations to start a journey.', style: TextStyle(color: Colors.grey)),
+              const Text('No active goals currently.', style: TextStyle(color: Colors.grey)),
             for (var i = 0; i < _carePlan.length; i++)
-              PraxiaJourneyStep(i + 1, _carePlan[i]['title'] ?? '', _carePlan[i]['impact_text'] ?? 'In Progress', true),
+              PraxiaJourneyStep(i + 1, _carePlan[i]['title'] ?? '', _carePlan[i]['description'] ?? '', _carePlan[i]['completed'] == true),
           ]),
         ],
       ),

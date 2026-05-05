@@ -1,7 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import '../../api_service.dart';
 import '../widgets/app_drawer.dart';
@@ -14,10 +11,10 @@ class ConnectDataScreen extends StatefulWidget {
 }
 
 class _ConnectDataScreenState extends State<ConnectDataScreen> {
-  final List<dynamic> _scannedDevices = [];
-  bool _isScanning = false;
-  final Map<String, String> _pairStatus = {};
   Map<String, dynamic>? _riskFactors;
+  bool _documentUploaded = false;
+  bool _isStable = false; 
+  bool _isAiThinking = false;
 
   final List<Map<String, dynamic>> staticItems = [
     {
@@ -46,61 +43,7 @@ class _ConnectDataScreenState extends State<ConnectDataScreen> {
   @override
   void initState() {
     super.initState();
-    _loadRiskFactors();
-  }
-
-  Future<void> _loadRiskFactors() async {
-    final factors = await ApiService.getRiskFactors();
-    if (mounted) setState(() => _riskFactors = factors);
-  }
-
-  Future<void> _startScan() async {
-    setState(() {
-      _isScanning = true;
-      _scannedDevices.clear();
-    });
-
-    try {
-      if (await Permission.bluetoothScan.request().isGranted &&
-          await Permission.bluetoothConnect.request().isGranted &&
-          await Permission.location.request().isGranted) {
-        
-        FlutterBluePlus.startScan(timeout: const Duration(seconds: 5));
-        
-        FlutterBluePlus.scanResults.listen((results) {
-          if (mounted) {
-            for (var r in results) {
-              String name = r.device.platformName.isEmpty ? 'Generic Bluetooth Device' : r.device.platformName;
-              if (!_scannedDevices.any((d) => d['id'] == r.device.remoteId.toString())) {
-                setState(() {
-                  _scannedDevices.add({'name': name, 'id': r.device.remoteId.toString(), 'type': 'Real'});
-                });
-              }
-            }
-          }
-        });
-      }
-    } catch (e) {
-      debugPrint("Scan error: $e");
-    }
-
-    // Add Simulated for Demo
-    await Future.delayed(const Duration(seconds: 1));
-    if (mounted) {
-      setState(() {
-        _scannedDevices.add({'name': 'Praxia Smart Ring v2', 'id': 'PR-0824', 'type': 'Simulated'});
-        _scannedDevices.add({'name': 'Oura Ring Gen3', 'id': 'OR-1102', 'type': 'Simulated'});
-      });
-    }
-
-    await Future.delayed(const Duration(seconds: 4));
-    if (mounted) setState(() => _isScanning = false);
-  }
-
-  void _pairDevice(String id) async {
-    setState(() => _pairStatus[id] = 'Pairing...');
-    await Future.delayed(const Duration(seconds: 2));
-    if (mounted) setState(() => _pairStatus[id] = 'Connected ✅');
+    // Do not load risk factors initially
   }
 
   Future<void> _uploadDocument(String docType) async {
@@ -123,13 +66,79 @@ class _ConnectDataScreenState extends State<ConnectDataScreen> {
         final response = await ApiService.uploadDocument(filePath, fileName, docType);
 
         if (mounted) {
-          if (response.containsKey('id')) {
+          if (response.containsKey('id') || response.containsKey('success')) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text('$docType uploaded successfully!'),
                 backgroundColor: Colors.green,
               ),
             );
+            
+            // After successful upload, drop down the data synthesis
+            setState(() {
+              _documentUploaded = true;
+              _isAiThinking = true;
+              _riskFactors = null;
+            });
+            
+            // Call AI via the backend which hits DeepSeek
+            final aiResult = await ApiService.parseLabPDF(filePath);
+            
+            if (mounted) {
+              setState(() {
+                _isAiThinking = false;
+              });
+              
+              if (aiResult.containsKey('biomarkers')) {
+                final biomarkers = aiResult['biomarkers'] as List<dynamic>;
+                if (biomarkers.isEmpty) {
+                  setState(() {
+                    _isStable = true;
+                    _riskFactors = {
+                      'factors': [
+                        {'name': 'Scan Result', 'status': 'Normal'}
+                      ],
+                      'warning_message': 'Everything looks good! No abnormalities found.',
+                      'explanation_title': 'Summary',
+                      'explanation_text': 'Our AI could not find any elevated biomarkers in the uploaded document.'
+                    };
+                  });
+                } else {
+                  final factors = biomarkers.map((b) => {
+                    'name': b['name'],
+                    'status': b['status'] ?? 'Normal'
+                  }).toList();
+                  
+                  final hasAbnormal = factors.any((f) => 
+                    f['status'].toString().toLowerCase() != 'normal' && 
+                    f['status'].toString().toLowerCase() != 'optimal'
+                  );
+                  
+                  setState(() {
+                    _isStable = !hasAbnormal;
+                    _riskFactors = {
+                      'factors': factors.take(6).toList(),
+                      'warning_message': hasAbnormal 
+                          ? 'Our AI detected some abnormal biomarkers in your document.' 
+                          : 'Everything looks optimal according to our AI analysis.',
+                      'explanation_title': 'DeepSeek Analysis Complete',
+                      'explanation_text': 'DeepSeek processed your document and extracted the key data points above. ${hasAbnormal ? 'We recommend discussing these with your provider.' : 'Keep up the healthy habits!'}'
+                    };
+                  });
+                }
+              } else {
+                 setState(() {
+                   _isStable = false;
+                   _riskFactors = {
+                     'factors': [],
+                     'warning_message': 'Error analyzing document with AI',
+                     'explanation_title': 'Analysis Failed',
+                     'explanation_text': aiResult['error'] ?? 'Unknown error'
+                   };
+                 });
+              }
+            }
+
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -159,7 +168,6 @@ class _ConnectDataScreenState extends State<ConnectDataScreen> {
           children: [
             _buildHeader(context),
             _buildDescription(),
-            if (_isScanning) const LinearProgressIndicator(color: Color(0xFF2E7D5E), backgroundColor: Colors.white),
             Expanded(
               child: Stack(
                 children: [
@@ -172,41 +180,48 @@ class _ConnectDataScreenState extends State<ConnectDataScreen> {
                   ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     children: [
-                      // Simulated & Real Bluetooth Devices section
-                      if (_scannedDevices.isNotEmpty || _isScanning) ...[
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 16, horizontal: 45),
-                          child: Text('AVAILABLE DEVICES', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.2)),
-                        ),
-                        ..._scannedDevices.map((d) => _buildScannedDeviceCard(d)).toList(),
-                      ],
-
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 16, horizontal: 45),
                         child: Text('DOCUMENT UPLOADS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.2)),
                       ),
                       ...staticItems.asMap().entries.map((entry) => _buildItemCard(entry.value, entry.key, staticItems.length)).toList(),
 
-                      if (_riskFactors != null) _buildRiskFactorsCard(),
+                      if (_documentUploaded && _isAiThinking) _buildAiThinkingCard(),
+                      if (_documentUploaded && !_isAiThinking && _riskFactors != null) _buildRiskFactorsCard(),
                     ],
                   ),
                 ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isScanning ? null : _startScan,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2E7D5E),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: Text(_isScanning ? 'Scanning...' : 'Scan for Devices', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                ),
-              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAiThinkingCard() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 24, bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 10, offset: const Offset(0, 3))],
+          border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+        ),
+        child: Column(
+          children: [
+            const CircularProgressIndicator(color: Color(0xFF2E7D5E)),
+            const SizedBox(height: 16),
+            const Text(
+              'DeepSeek AI is analyzing...',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1D3B5A)),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Extracting biomarkers from your document',
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
             ),
           ],
         ),
@@ -247,33 +262,6 @@ class _ConnectDataScreenState extends State<ConnectDataScreen> {
           fontSize: 13,
           color: Colors.grey.shade600,
           height: 1.5,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildScannedDeviceCard(Map<String, dynamic> d) {
-    final status = _pairStatus[d['id']] ?? 'Connect';
-    bool isPaired = status.contains('Connected');
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Container(
-        decoration: BoxDecoration(
-          color: isPaired ? const Color(0xFFF0FDF4) : Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: isPaired ? const Color(0xFF2E7D5E).withOpacity(0.3) : Colors.white),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 10, offset: const Offset(0, 3))],
-        ),
-        child: ListTile(
-          leading: Container(
-            width: 52, height: 52,
-            decoration: BoxDecoration(color: const Color(0xFFF5F5F5), borderRadius: BorderRadius.circular(12)),
-            child: Icon(d['type'] == 'Real' ? Icons.bluetooth : Icons.watch, color: const Color(0xFF2E7D5E)),
-          ),
-          title: Text(d['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF1D3B5A))),
-          subtitle: Text(d['id'], style: const TextStyle(fontSize: 10, color: Colors.grey)),
-          trailing: _buildActionButton(status, isPaired ? Icons.check : Icons.bluetooth, isPaired, () => _pairDevice(d['id'])),
         ),
       ),
     );
@@ -341,7 +329,7 @@ class _ConnectDataScreenState extends State<ConnectDataScreen> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 10, offset: const Offset(0, 3))],
-          border: Border.all(color: const Color(0xFFF1F5F9), width: 2),
+          border: Border.all(color: _isStable ? Colors.green.shade100 : const Color(0xFFF1F5F9), width: 2),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -353,7 +341,10 @@ class _ConnectDataScreenState extends State<ConnectDataScreen> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                      Icon(
+                        _isStable ? Icons.check_circle : Icons.warning_amber_rounded, 
+                        color: _isStable ? Colors.green : Colors.orange
+                      ),
                       const SizedBox(width: 8),
                       const Text('Data Synthesis', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1D3B5A))),
                     ],
@@ -365,23 +356,23 @@ class _ConnectDataScreenState extends State<ConnectDataScreen> {
                     children: factors.map((f) => Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFF7ED),
+                        color: _isStable ? const Color(0xFFF0FDF4) : const Color(0xFFFFF7ED),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.orange.shade200),
+                        border: Border.all(color: _isStable ? Colors.green.shade200 : Colors.orange.shade200),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text('${f['name']}: ', style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF9A3412), fontSize: 13)),
-                          Text('${f['status']}', style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF9A3412), fontSize: 13)),
+                          Text('${f['name']}: ', style: TextStyle(fontWeight: FontWeight.w600, color: _isStable ? Colors.green.shade800 : const Color(0xFF9A3412), fontSize: 13)),
+                          Text('${f['status']}', style: TextStyle(fontWeight: FontWeight.w900, color: _isStable ? Colors.green.shade800 : const Color(0xFF9A3412), fontSize: 13)),
                         ],
                       ),
                     )).toList(),
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    _riskFactors?['warning_message'] ?? 'These combined factors are increasing your cardiovascular risk.',
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red, fontSize: 14),
+                    _riskFactors?['warning_message'] ?? '',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: _isStable ? Colors.green.shade700 : Colors.red, fontSize: 14),
                   ),
                 ],
               ),

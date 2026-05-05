@@ -86,24 +86,34 @@ const AppSidebarWrapper = forwardRef(({ navigation, children }, ref) => {
               <Text style={styles.itemText}>4. AI Assistance</Text>
             </TouchableOpacity>
 
+            <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('TrackProgress')}>
+              <MaterialIcons name="trending-up" size={22} color="#1D3B5A" style={{width: 30}} />
+              <Text style={styles.itemText}>5. Track Progress</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('LabResults')}>
+              <MaterialIcons name="science" size={22} color="#1D3B5A" style={{width: 30}} />
+              <Text style={styles.itemText}>MVP Flow Start</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('Prediction')}>
               <MaterialIcons name="auto-awesome" size={22} color="#1D3B5A" style={{width: 30}} />
-              <Text style={styles.itemText}>5. Prediction</Text>
+              <Text style={styles.itemText}>6. Prediction</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('Recommendation')}>
               <MaterialIcons name="check-circle-outline" size={22} color="#1D3B5A" style={{width: 30}} />
-              <Text style={styles.itemText}>6. Recommendation</Text>
+              <Text style={styles.itemText}>7. Recommendation</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('Escalation')}>
               <MaterialIcons name="medical-services" size={22} color="#1D3B5A" style={{width: 30}} />
-              <Text style={styles.itemText}>7. Escalation</Text>
+              <Text style={styles.itemText}>8. Escalation</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('JourneyFlow')}>
               <MaterialIcons name="map" size={22} color="#1D3B5A" style={{width: 30}} />
-              <Text style={styles.itemText}>8. Journey Flow</Text>
+              <Text style={styles.itemText}>9. Journey Flow</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('MessagePortal')}>

@@ -18,6 +18,10 @@ import ChatDetailScreen from './src/screens/ChatDetailScreen';
 import JourneyFlowScreen from './src/screens/JourneyFlowScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import TrackProgressScreen from './src/screens/TrackProgressScreen';
+import LabResultsScreen from './src/screens/LabResultsScreen';
+import AiInsightsScreen from './src/screens/AiInsightsScreen';
+import WhatItMeansScreen from './src/screens/WhatItMeansScreen';
+import ActionPlanScreen from './src/screens/ActionPlanScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -40,6 +44,10 @@ export default function App() {
         <Stack.Screen name="JourneyFlow" component={JourneyFlowScreen} />
         <Stack.Screen name="TrackProgress" component={TrackProgressScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
+        <Stack.Screen name="LabResults" component={LabResultsScreen} />
+        <Stack.Screen name="AiInsights" component={AiInsightsScreen} />
+        <Stack.Screen name="WhatItMeans" component={WhatItMeansScreen} />
+        <Stack.Screen name="ActionPlan" component={ActionPlanScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

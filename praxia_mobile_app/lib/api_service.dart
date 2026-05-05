@@ -482,4 +482,20 @@ class ApiService {
     } catch (_) {}
     return {'error': 'Upload failed'};
   }
+
+  static Future<Map<String, dynamic>> parseLabPDF(String filePath) async {
+    final token = await getToken();
+    try {
+      var request = http.MultipartRequest('POST', Uri.parse('$baseUrl/parse-pdf/'));
+      if (token != null) request.headers['Authorization'] = 'Bearer $token';
+      request.files.add(await http.MultipartFile.fromPath('file', filePath));
+      
+      var response = await request.send();
+      var responseData = await response.stream.bytesToString();
+      if (response.statusCode == 200) return jsonDecode(responseData);
+    } catch (e) {
+      return {'error': 'Parse failed: $e'};
+    }
+    return {'error': 'Parse failed'};
+  }
 }

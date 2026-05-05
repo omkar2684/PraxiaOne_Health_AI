@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import '../../api_service.dart';
 import '../../core/app_theme.dart';
 import '../widgets/app_drawer.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'health_score_screen.dart';
 import 'journey_flow_screen.dart';
+import 'lab_results_screen.dart';
 
 class RecommendationScreen extends StatefulWidget {
   const RecommendationScreen({Key? key}) : super(key: key);
@@ -24,9 +26,21 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
 
   Future<void> _fetch() async {
     final recs = await ApiService.getRecommendations();
+    final prefs = await SharedPreferences.getInstance();
+    
+    Map<int, bool> active = {};
+    if (recs != null) {
+      for (var r in recs) {
+        if (prefs.getBool('plan_active_${r['id']}') == true) {
+          active[r['id']] = true;
+        }
+      }
+    }
+
     if (mounted) {
       setState(() {
         _recs = recs ?? [];
+        _activePlans = active;
         _loading = false;
       });
     }
@@ -35,6 +49,9 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
   void _startPlan(int id) async {
     setState(() => _isStarting = true);
     await ApiService.startRecommendation(id);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('plan_active_$id', true);
+    
     if (mounted) setState(() { _isStarting = false; _activePlans[id] = true; });
   }
 
@@ -102,9 +119,16 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
   Widget _buildPlanCard(Map<String, dynamic> rec) {
     bool isActive = _activePlans[rec['id']] ?? false;
     
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))],
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
         children: [
           Stack(
             alignment: Alignment.center,
@@ -147,14 +171,14 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: isActive ? () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HealthScoreScreen())) : (_isStarting ? null : () => _startPlan(rec['id'])),
+              onPressed: isActive ? null : (_isStarting ? null : () => _startPlan(rec['id'])),
               style: ElevatedButton.styleFrom(
                 backgroundColor: isActive ? const Color(0xFF047857) : AppColors.primary,
                 padding: const EdgeInsets.symmetric(vertical: 18),
                 elevation: 5,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
-              child: _isStarting ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : Text(isActive ? 'Active Plan - Check Home' : 'Start My Journey', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              child: _isStarting ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : Text(isActive ? '✓ Currently Active' : 'Start My Journey', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
             ),
           ),
           
@@ -186,7 +210,7 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: () {},
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LabResultsScreen())),
               icon: const Icon(Icons.upload_file_rounded, color: AppColors.primary),
               label: const Text('Upload Updated Lab Results', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
               style: OutlinedButton.styleFrom(
@@ -214,6 +238,7 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
           ),
           const SizedBox(height: 40),
         ],
+      ),
       ),
     );
   }
