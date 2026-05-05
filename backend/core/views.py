@@ -424,6 +424,44 @@ class TrackProgressView(APIView):
             }
         })
 
+class TrackProgressInsightsView(APIView):
+    permission_classes = [permissions.AllowAny]
+    
+    def post(self, request):
+        actions = request.data.get("actions", [])
+        if not actions:
+            return Response({
+                "insights": [{"icon": "auto_awesome", "text": "Start tracking actions to see insights.", "color": "primary"}],
+                "projection": {"text": "Track your actions to see projections.", "subtext": "", "biomarkers": []},
+                "re_test": {"days_left": 30, "text": "Track actions to get a personalized re-test recommendation."},
+                "signals": []
+            })
+            
+        prompt = f"""
+        You are a medical AI. The user is currently tracking these health actions: {json.dumps(actions)}
+        
+        Generate a JSON response with:
+        1. 'insights': A short, simple explanation of how these actions are helping (e.g., 'Walking helps regulate blood sugar'). Return an array of objects with 'icon' (e.g. 'trending_up', 'directions_walk'), 'text', 'subtext', and 'color' (success, warning, primary).
+        2. 'projection': What happens if they stay on track. Object with 'text' and 'subtext', plus an array of 'biomarkers' showing projected improvements (e.g., {{"name": "Fasting Glucose", "improvement": "-12%", "from_to": "From 102 to ~90 mg/dL", "trend": "down"}}).
+        3. 're_test': A personalized recommendation for when to re-test based on the actions' severity. Object with 'days_left' (integer) and 'text' (explanation).
+        4. 'signals': Improvement signals so far. Array of objects with 'name' (e.g., Activity, Sleep) and 'value' (e.g., "+22%").
+        
+        Return ONLY valid JSON. No markdown formatting.
+        """
+        
+        try:
+            from core.mock_llm import call_ollama_pipeline, DEEPSEEK_MODEL
+            import re, json
+            llm_res = call_ollama_pipeline(prompt, DEEPSEEK_MODEL)
+            match = re.search(r'\{.*\}', llm_res, re.DOTALL)
+            if match:
+                data = json.loads(match.group(0))
+                return Response(data)
+            else:
+                return Response({"error": "Failed to parse AI response"}, status=500)
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
+
 # --- PDF & Auth Endpoints ---
 from io import BytesIO
 from reportlab.pdfgen import canvas

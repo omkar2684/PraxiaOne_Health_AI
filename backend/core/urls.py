@@ -30,6 +30,7 @@ from .views import (
     DeleteAccountView,
     HealthScoreView,
     TrackProgressView,
+    TrackProgressInsightsView,
 )
 
 from .medication_views import MedicationViewSet
@@ -72,5 +73,6 @@ urlpatterns = [
     path("auth/logout/", LogoutView.as_view()),
     path("auth/delete-account/", DeleteAccountView.as_view()),
     path("track-progress/", TrackProgressView.as_view()),
+    path("track-progress-insights/", TrackProgressInsightsView.as_view()),
     path("health-score/", HealthScoreView.as_view(), name="health-score"),
 ]

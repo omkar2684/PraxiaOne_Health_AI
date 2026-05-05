@@ -9,6 +9,9 @@ export default function TrackProgressScreen({ route, navigation }) {
   const sidebarRef = useRef(null);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [dynamicInsights, setDynamicInsights] = useState(null);
+  const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
+  const [actionDaysCompleted, setActionDaysCompleted] = useState({});
 
   const passedActions = route?.params?.actions;
 
@@ -39,12 +42,84 @@ export default function TrackProgressScreen({ route, navigation }) {
             progress_percent: total > 0 ? Math.round((completed / total) * 100) : 0
           };
         }
-        setData(result);
+          const initialDays = {};
+          result.actions.forEach((_, idx) => {
+            initialDays[idx] = Array(7).fill(false);
+          });
+          setActionDaysCompleted(initialDays);
+          
+          setData(result);
+          generateDynamicInsights(result.actions);
+        } else if (result && result.actions) {
+          const initialDays = {};
+          result.actions.forEach((_, idx) => {
+            initialDays[idx] = Array(7).fill(false);
+          });
+          setActionDaysCompleted(initialDays);
+          setData(result);
+          generateDynamicInsights(result.actions);
+        }
       }
       setLoading(false);
     };
     fetchData();
   }, []);
+
+  const generateDynamicInsights = async (actions) => {
+    if (!actions || actions.length === 0) return;
+    setIsGeneratingInsights(true);
+    const insightsData = await ApiService.getTrackProgressInsights(actions);
+    if (insightsData && Object.keys(insightsData).length > 0) {
+      setDynamicInsights(insightsData);
+    }
+    setIsGeneratingInsights(false);
+  };
+
+  const handleUpdateStatus = (actionIndex) => {
+    // Only kept for fallback or if we want to change status directly, but days will drive it now
+  };
+
+  const toggleDay = (actionIndex, dayIndex) => {
+    setActionDaysCompleted(prev => {
+      const currentDays = [...(prev[actionIndex] || Array(7).fill(false))];
+      currentDays[dayIndex] = !currentDays[dayIndex];
+      const newState = { ...prev, [actionIndex]: currentDays };
+      
+      // Update data status based on days
+      const totalDays = currentDays.filter(d => d).length;
+      let status = "Not Started";
+      let statusColor = "error";
+      let colorHex = "#EF4444";
+      
+      if (totalDays > 4) {
+        status = "On Track"; statusColor = "success"; colorHex = "#10B981";
+      } else if (totalDays > 0) {
+        status = "Partial"; statusColor = "warning"; colorHex = "#F59E0B";
+      }
+      
+      setData(prevData => {
+        if (!prevData) return prevData;
+        const newActions = [...prevData.actions];
+        if (newActions[actionIndex] && !newActions[actionIndex].is_actionable) {
+          newActions[actionIndex] = { ...newActions[actionIndex], status, status_color: statusColor, color_hex: colorHex };
+        }
+        
+        const completed = newActions.filter(a => a.status === "On Track").length;
+        const partial = newActions.filter(a => a.status === "Partial").length;
+        const not_started = newActions.filter(a => a.status === "Not Started").length;
+        const total = newActions.length;
+        const progress_percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+        
+        return { 
+          ...prevData, 
+          actions: newActions, 
+          weekly_summary: { completed, partial, not_started, total, progress_percent } 
+        };
+      });
+      
+      return newState;
+    });
+  };
 
   const handleUpdateStatus = (actionId) => {
     if (!data) return;
@@ -109,11 +184,21 @@ export default function TrackProgressScreen({ route, navigation }) {
       
       {!showSchedule ? (
         <View style={styles.daysRow}>
-          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, idx) => (
-             <View key={idx} style={[styles.dayCircle, idx < 4 ? { borderColor: color } : {}]}>
-               <Text style={[styles.dayText, idx < 4 ? { color: color } : {}]}>{day}</Text>
-             </View>
-          ))}
+          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, dayIdx) => {
+             const isCompleted = actionDaysCompleted[id] ? actionDaysCompleted[id][dayIdx] : false;
+             return (
+               <TouchableOpacity 
+                 key={dayIdx} 
+                 onPress={() => toggleDay(id, dayIdx)}
+                 style={[
+                   styles.dayCircle, 
+                   isCompleted ? { backgroundColor: color, borderColor: color } : {}
+                 ]}
+               >
+                 <Text style={[styles.dayText, isCompleted ? { color: 'white' } : {}]}>{day}</Text>
+               </TouchableOpacity>
+             );
+          })}
         </View>
       ) : (
         <TouchableOpacity style={styles.scheduleButton}>
@@ -239,10 +324,16 @@ export default function TrackProgressScreen({ route, navigation }) {
                   <MaterialIcons name="auto-awesome" size={20} color="#3B82F6" />
                   <Text style={styles.cardTitle}>What We're Seeing</Text>
                 </View>
-                <TouchableOpacity><Text style={styles.linkText}>View Details</Text></TouchableOpacity>
+                {isGeneratingInsights ? (
+                  <ActivityIndicator size="small" color="#3B82F6" />
+                ) : (
+                  <TouchableOpacity onPress={() => generateDynamicInsights(data.actions)}>
+                    <MaterialIcons name="refresh" size={20} color="#3B82F6" />
+                  </TouchableOpacity>
+                )}
               </View>
               
-              {data.insights?.map((insight, idx) => {
+              {(dynamicInsights?.insights || data.insights)?.map((insight, idx) => {
                 const colorMap = {
                   'success': '#10B981',
                   'warning': '#F59E0B',
@@ -273,7 +364,10 @@ export default function TrackProgressScreen({ route, navigation }) {
             </View>
 
             {/* Section 4: Outcome Projection */}
-            <View style={styles.card}>
+            <TouchableOpacity 
+              style={styles.card}
+              onPress={() => navigation.navigate('OutcomeSimulation', { projection: dynamicInsights?.projection || data.projection })}
+            >
               <View style={styles.cardHeaderLeft}>
                 <Ionicons name="bullseye" size={20} color="#3B82F6" />
                 <Text style={styles.cardTitle}>If you stay on track</Text>
@@ -282,17 +376,20 @@ export default function TrackProgressScreen({ route, navigation }) {
                 <MaterialIcons name="trending-up" size={28} color="#10B981" />
                 <View style={styles.projectionTextContainer}>
                   <Text style={styles.projectionText}>
-                    {data.projection?.text.split(/glucose levels/i).map((part, idx, arr) => (
+                    {(dynamicInsights?.projection?.text || data.projection?.text || '').split(/glucose levels/i).map((part, idx, arr) => (
                       <React.Fragment key={idx}>
                         {part}
                         {idx < arr.length - 1 && <Text style={{ color: '#10B981', fontWeight: 'bold' }}>glucose levels</Text>}
                       </React.Fragment>
                     ))}
                   </Text>
-                  <Text style={styles.projectionSubtext}>{data.projection?.subtext}</Text>
+                  <Text style={styles.projectionSubtext}>{dynamicInsights?.projection?.subtext || data.projection?.subtext}</Text>
                 </View>
               </View>
-            </View>
+              <View style={{ marginTop: 12 }}>
+                <Text style={styles.linkText}>View Details</Text>
+              </View>
+            </TouchableOpacity>
 
             {/* Section 5: Re-Test Trigger */}
             <View style={[styles.card, styles.highlightCard]}>
@@ -301,7 +398,7 @@ export default function TrackProgressScreen({ route, navigation }) {
                 <View style={styles.retestTextContainer}>
                   <Text style={styles.retestTitle}>Next Step: Re-Test</Text>
                   <Text style={styles.retestDesc}>
-                    {data.re_test?.text.split(/(\d+ days)/).map((part, idx) => (
+                    {(dynamicInsights?.re_test?.text || data.re_test?.text || '').split(/(\d+ days)/).map((part, idx) => (
                       part.match(/\d+ days/) 
                         ? <Text key={idx} style={{ fontWeight: 'bold', color: '#2563EB' }}>{part}</Text>
                         : part
@@ -309,7 +406,10 @@ export default function TrackProgressScreen({ route, navigation }) {
                   </Text>
                 </View>
               </View>
-              <TouchableOpacity style={styles.bookButton}>
+              <TouchableOpacity 
+                style={styles.bookButton}
+                onPress={() => navigation.navigate('ReTestTrigger')}
+              >
                 <Text style={styles.bookButtonText}>Book Follow-Up Test</Text>
               </TouchableOpacity>
             </View>

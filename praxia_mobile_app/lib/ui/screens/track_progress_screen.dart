@@ -3,6 +3,7 @@ import '../../api_service.dart';
 import '../../core/app_theme.dart';
 import '../widgets/app_drawer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'outcome_simulation_screen.dart';
 
 class TrackProgressScreen extends StatefulWidget {
   const TrackProgressScreen({Key? key}) : super(key: key);
@@ -13,8 +14,11 @@ class TrackProgressScreen extends StatefulWidget {
 
 class _TrackProgressScreenState extends State<TrackProgressScreen> {
   bool _isLoading = true;
+  bool _isGeneratingInsights = false;
   String _error = '';
   Map<String, dynamic>? _data;
+  Map<String, dynamic>? _dynamicInsights;
+  Map<int, List<bool>> _actionDaysCompleted = {};
 
   @override
   void initState() {
@@ -53,9 +57,19 @@ class _TrackProgressScreenState extends State<TrackProgressScreen> {
             _data!['weekly_summary']['partial'] = 0;
             _data!['weekly_summary']['not_started'] = dynamicActions.length;
             _data!['weekly_summary']['progress_percent'] = 0;
+            
+            // Initialize completed days tracking
+            for (int i = 0; i < dynamicActions.length; i++) {
+              _actionDaysCompleted[i] = List.filled(7, false);
+            }
+          } else {
+            for (int i = 0; i < _data!['actions'].length; i++) {
+               _actionDaysCompleted[i] = List.filled(7, false);
+            }
           }
           _isLoading = false;
         });
+        _generateDynamicInsights();
       }
     } catch (e) {
       if (mounted) {
@@ -67,14 +81,40 @@ class _TrackProgressScreenState extends State<TrackProgressScreen> {
     }
   }
 
-  void _updateActionStatus(int actionIndex, String status, String statusColor) {
+  Future<void> _generateDynamicInsights() async {
+    if (_data == null || _data!['actions'] == null || _data!['actions'].isEmpty) return;
+    
+    setState(() => _isGeneratingInsights = true);
+    final insightsData = await ApiService.getTrackProgressInsights(_data!['actions']);
+    if (mounted) {
+      setState(() {
+        if (insightsData.isNotEmpty) {
+          _dynamicInsights = insightsData;
+        }
+        _isGeneratingInsights = false;
+      });
+    }
+  }
+
+  void _toggleDay(int actionIndex, int dayIndex) {
     setState(() {
+      _actionDaysCompleted[actionIndex]![dayIndex] = !_actionDaysCompleted[actionIndex]![dayIndex];
+      
+      int totalDays = _actionDaysCompleted[actionIndex]!.where((d) => d).length;
+      String status = "Not Started";
+      String statusColor = "error";
+      if (totalDays > 4) {
+        status = "On Track";
+        statusColor = "success";
+      } else if (totalDays > 0) {
+        status = "Partial";
+        statusColor = "warning";
+      }
+      
       _data!['actions'][actionIndex]['status'] = status;
       _data!['actions'][actionIndex]['status_color'] = statusColor;
       
-      int completed = 0;
-      int partial = 0;
-      int notStarted = 0;
+      int completed = 0, partial = 0, notStarted = 0;
       for (var action in _data!['actions']) {
         if (action['status'] == "On Track") completed++;
         else if (action['status'] == "Partial") partial++;
@@ -91,7 +131,6 @@ class _TrackProgressScreenState extends State<TrackProgressScreen> {
         'progress_percent': progress
       };
     });
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Marked as $status"), duration: const Duration(seconds: 2)));
   }
 
   Color _hexToColor(String code) {
@@ -124,6 +163,7 @@ class _TrackProgressScreenState extends State<TrackProgressScreen> {
   Widget _buildActionCard(Map<String, dynamic> action, int index, bool isLast) {
     final statusColor = _getStatusColor(action['status_color']);
     final iconColor = _hexToColor(action['color_hex']);
+    final days = _actionDaysCompleted[index] ?? List.filled(7, false);
     
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -131,15 +171,16 @@ class _TrackProgressScreenState extends State<TrackProgressScreen> {
         border: isLast ? null : Border(bottom: BorderSide(color: Colors.grey.shade200)),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: iconColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
+                  shape: BoxShape.circle,
                 ),
                 child: Icon(_getIconData(action['icon']), color: iconColor, size: 24),
               ),
@@ -148,64 +189,31 @@ class _TrackProgressScreenState extends State<TrackProgressScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(action['title'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                    const SizedBox(height: 2),
-                    Text(action['subtext'], style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: Text(action['title'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E293B)))),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
+                          child: Text(action['status'], style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(action['subtext'], style: const TextStyle(color: Color(0xFF64748B), fontSize: 13, height: 1.4)),
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  action['status'],
-                  style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
-                ),
-              ),
-              if (action['is_actionable'] != true) ...[
-                const SizedBox(width: 8),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.check_circle_outline, color: Colors.green, size: 20),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      onPressed: () => _updateActionStatus(index, "On Track", "success"),
-                    ),
-                    const SizedBox(width: 4),
-                    IconButton(
-                      icon: const Icon(Icons.remove_circle_outline, color: Colors.orange, size: 20),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      onPressed: () => _updateActionStatus(index, "Partial", "warning"),
-                    ),
-                    const SizedBox(width: 4),
-                    IconButton(
-                      icon: const Icon(Icons.cancel_outlined, color: Colors.red, size: 20),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      onPressed: () => _updateActionStatus(index, "Not Started", "error"),
-                    ),
-                  ],
-                ),
-              ],
-              if (action['is_actionable'] == true) ...[
-                const SizedBox(width: 8),
-                const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
-              ]
             ],
           ),
           if (action['is_actionable'] == true)
             Padding(
-              padding: const EdgeInsets.only(top: 12, left: 52),
+              padding: const EdgeInsets.only(top: 16, left: 56),
               child: ElevatedButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Opening scheduler..."), duration: Duration(seconds: 2)));
-                },
+                onPressed: () {},
                 icon: const Icon(Icons.event, size: 18, color: AppColors.primary),
                 label: const Text("Schedule Now"),
                 style: ElevatedButton.styleFrom(
@@ -219,26 +227,30 @@ class _TrackProgressScreenState extends State<TrackProgressScreen> {
             )
           else
             Padding(
-              padding: const EdgeInsets.only(top: 12, left: 52),
+              padding: const EdgeInsets.only(top: 16, left: 56),
               child: Row(
                 children: ['M', 'T', 'W', 'T', 'F', 'S', 'S'].asMap().entries.map((entry) {
                   int idx = entry.key;
-                  bool isCompleted = idx < 4; // Mock logic for visual, ideally from backend
-                  return Container(
-                    width: 24,
-                    height: 24,
-                    margin: const EdgeInsets.only(right: 6),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: isCompleted ? iconColor : Colors.grey.shade300),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      entry.value,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: isCompleted ? iconColor : Colors.grey.shade400,
+                  bool isCompleted = days[idx];
+                  return GestureDetector(
+                    onTap: () => _toggleDay(index, idx),
+                    child: Container(
+                      width: 28,
+                      height: 28,
+                      margin: const EdgeInsets.only(right: 8),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isCompleted ? iconColor : Colors.white,
+                        border: Border.all(color: isCompleted ? iconColor : Colors.grey.shade300),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        entry.value,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: isCompleted ? Colors.white : Colors.grey.shade500,
+                        ),
                       ),
                     ),
                   );
@@ -266,9 +278,9 @@ class _TrackProgressScreenState extends State<TrackProgressScreen> {
 
     final summary = _data!['weekly_summary'];
     final actions = _data!['actions'] as List;
-    final insights = _data!['insights'] as List;
-    final projection = _data!['projection'];
-    final reTest = _data!['re_test'];
+    final insights = (_dynamicInsights != null ? _dynamicInsights!['insights'] : _data!['insights']) as List;
+    final projection = _dynamicInsights != null ? _dynamicInsights!['projection'] : _data!['projection'];
+    final reTest = _dynamicInsights != null ? _dynamicInsights!['re_test'] : _data!['re_test'];
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -424,10 +436,22 @@ class _TrackProgressScreenState extends State<TrackProgressScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
-                    children: const [
-                      Icon(Icons.auto_awesome, color: Colors.blue, size: 20),
-                      SizedBox(width: 8),
-                      Text("What We're Seeing", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: const [
+                          Icon(Icons.auto_awesome, color: Colors.blue, size: 20),
+                          SizedBox(width: 8),
+                          Text("What We're Seeing", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        ],
+                      ),
+                      if (_isGeneratingInsights)
+                        const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                      else
+                        InkWell(
+                          onTap: _generateDynamicInsights,
+                          child: const Icon(Icons.refresh, color: Colors.blue, size: 20),
+                        )
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -457,79 +481,70 @@ class _TrackProgressScreenState extends State<TrackProgressScreen> {
             const SizedBox(height: 20),
 
             // Projection
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200)),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: const [
-                      Icon(Icons.track_changes, color: Colors.blue, size: 20),
-                      SizedBox(width: 8),
-                      Text("If you stay on track", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8)),
-                    child: Row(
+            InkWell(
+              onTap: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => OutcomeSimulationScreen(projection: projection)));
+              },
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Icon(Icons.trending_up, color: Colors.green.shade600, size: 32),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(projection['text'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                              const SizedBox(height: 4),
-                              Text(projection['subtext'], style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                            ],
-                          ),
-                        )
+                        Row(
+                          children: const [
+                            Icon(Icons.track_changes, color: Colors.blue, size: 20),
+                            SizedBox(width: 8),
+                            Text("If you stay on track", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          ],
+                        ),
+                        const Icon(Icons.chevron_right, color: Colors.grey)
                       ],
                     ),
-                  )
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Re-test
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.blue.shade200)),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: const [
-                      Icon(Icons.science, color: Colors.blue, size: 28),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Text("Next Step: Re-Test", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue)),
-                      )
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(reTest['text'], style: const TextStyle(fontSize: 14)),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Redirecting to LabCorp scheduling..."), duration: Duration(seconds: 2)));
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue.shade600,
-                      minimumSize: const Size(double.infinity, 48),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8)),
+                      child: Row(
+                        children: [
+                          Icon(Icons.trending_up, color: Colors.green.shade600, size: 32),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(projection['text'] ?? 'Projecting improvements', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                const SizedBox(height: 4),
+                                Text(projection['subtext'] ?? '', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                              ],
+                            ),
+                          )
+                        ],
+                      ),
                     ),
-                    child: const Text("Book Follow-Up Test", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
-                  )
-                ],
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton(
+                        onPressed: () {
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => OutcomeSimulationScreen(projection: projection)));
+                        },
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.blue.shade700,
+                          backgroundColor: Colors.blue.shade50,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: const Text("View Details", style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    )
+                  ],
+                ),
               ),
             ),
-
+            const SizedBox(height: 40),
           ],
         ),
       ),

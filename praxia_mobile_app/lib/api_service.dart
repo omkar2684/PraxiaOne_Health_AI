@@ -207,6 +207,22 @@ class ApiService {
     };
   }
 
+  static Future<Map<String, dynamic>> getTrackProgressInsights(List<dynamic> actions) async {
+    final token = await getToken();
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/track-progress-insights/'),
+        headers: {
+          if (token != null) 'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({"actions": actions}),
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
+    } catch (_) {}
+    return {};
+  }
+
   static Future<Map<String, dynamic>> getHealthScore() async {
     final token = await getToken();
     try {

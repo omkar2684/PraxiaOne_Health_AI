@@ -115,6 +115,22 @@ export const ApiService = {
     };
   },
 
+  getTrackProgressInsights: async (actions) => {
+    const token = await AsyncStorage.getItem('token');
+    try {
+      const response = await fetch(`${baseUrl}/track-progress-insights/`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ actions }),
+      });
+      if (response.ok) return await response.json();
+    } catch (e) {}
+    return {};
+  },
+
   getRiskFactors: async () => {
     const token = await AsyncStorage.getItem('token');
     try {

@@ -22,6 +22,9 @@ import LabResultsScreen from './src/screens/LabResultsScreen';
 import AiInsightsScreen from './src/screens/AiInsightsScreen';
 import WhatItMeansScreen from './src/screens/WhatItMeansScreen';
 import ActionPlanScreen from './src/screens/ActionPlanScreen';
+import OutcomeSimulationScreen from './src/screens/OutcomeSimulationScreen';
+import OutcomeSignalScreen from './src/screens/OutcomeSignalScreen';
+import ReTestTriggerScreen from './src/screens/ReTestTriggerScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -48,6 +51,9 @@ export default function App() {
         <Stack.Screen name="AiInsights" component={AiInsightsScreen} />
         <Stack.Screen name="WhatItMeans" component={WhatItMeansScreen} />
         <Stack.Screen name="ActionPlan" component={ActionPlanScreen} />
+        <Stack.Screen name="OutcomeSimulation" component={OutcomeSimulationScreen} />
+        <Stack.Screen name="OutcomeSignal" component={OutcomeSignalScreen} />
+        <Stack.Screen name="ReTestTrigger" component={ReTestTriggerScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
