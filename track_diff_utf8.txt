@@ -1,0 +1,475 @@
+﻿diff --git a/e:/praxiaone3/praxia_expo_app/src/screens/TrackProgressScreen.js b/e:/praxiaone3/MVP_Flow_Update/src/screens/TrackProgressScreen.js
+index 054b4e7..64e4c32 100644
+--- a/e:/praxiaone3/praxia_expo_app/src/screens/TrackProgressScreen.js
++++ b/e:/praxiaone3/MVP_Flow_Update/src/screens/TrackProgressScreen.js
+@@ -1,15 +1,75 @@
+-import React from 'react';
+-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Platform, StatusBar } from 'react-native';
++import React, { useRef, useState, useEffect } from 'react';
++import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Platform, StatusBar, ActivityIndicator } from 'react-native';
+ import { FontAwesome5, MaterialIcons, Feather, Ionicons } from '@expo/vector-icons';
+ import { AppColors } from '../constants/theme';
++import AppSidebarWrapper from '../components/AppSidebarWrapper';
++import { ApiService } from '../services/apiService';
+ 
+ export default function TrackProgressScreen({ navigation }) {
+-  const ActionCard = ({ icon, title, subtext, statusText, statusColor, color, isLast = false, showSchedule = false }) => (
+-    <View style={[styles.actionRow, isLast && { borderBottomWidth: 0 }]}>
++  const sidebarRef = useRef(null);
++  const [data, setData] = useState(null);
++  const [loading, setLoading] = useState(true);
++
++  useEffect(() => {
++    const fetchData = async () => {
++      const result = await ApiService.getTrackProgress();
++      if (result) {
++        setData(result);
++      }
++      setLoading(false);
++    };
++    fetchData();
++  }, []);
++
++  const handleUpdateStatus = (actionId) => {
++    if (!data) return;
++    
++    setData(prev => {
++      const newActions = prev.actions.map(act => {
++        if (act.id === actionId && !act.is_actionable) {
++          // Cycle status: On Track -> Partial -> Not Started -> On Track
++          let nextStatus, nextColor, nextColorHex;
++          if (act.status === "On Track") {
++            nextStatus = "Partial"; nextColor = "warning"; nextColorHex = "#F59E0B";
++          } else if (act.status === "Partial") {
++            nextStatus = "Not Started"; nextColor = "error"; nextColorHex = "#EF4444";
++          } else {
++            nextStatus = "On Track"; nextColor = "success"; nextColorHex = "#10B981";
++          }
++          return { ...act, status: nextStatus, status_color: nextColor, color_hex: nextColorHex };
++        }
++        return act;
++      });
++      
++      const completed = newActions.filter(a => a.status === "On Track").length;
++      const partial = newActions.filter(a => a.status === "Partial").length;
++      const not_started = newActions.filter(a => a.status === "Not Started").length;
++      const total = newActions.length;
++      const progress_percent = total > 0 ? Math.round((completed / total) * 100) : 0;
++      
++      return { 
++        ...prev, 
++        actions: newActions, 
++        weekly_summary: { completed, partial, not_started, total, progress_percent } 
++      };
++    });
++  };
++
++  const getMaterialIconName = (name) => {
++    if (!name) return 'check-circle';
++    return name.replace(/_/g, '-');
++  };
++
++  const ActionCard = ({ id, icon, title, subtext, statusText, statusColor, color, isLast = false, showSchedule = false }) => (
++    <TouchableOpacity 
++      style={[styles.actionRow, isLast && { borderBottomWidth: 0 }]}
++      onPress={() => showSchedule ? null : handleUpdateStatus(id)}
++      activeOpacity={showSchedule ? 1 : 0.7}
++    >
+       <View style={styles.actionHeader}>
+         <View style={styles.actionLeft}>
+           <View style={[styles.iconBox, { backgroundColor: `${color}15` }]}>
+-            <MaterialIcons name={icon} size={24} color={color} />
++            <MaterialIcons name={getMaterialIconName(icon)} size={24} color={color} />
+           </View>
+           <View style={styles.actionTextContainer}>
+             <Text style={styles.actionTitle}>{title}</Text>
+@@ -36,15 +96,16 @@ export default function TrackProgressScreen({ navigation }) {
+           <Text style={styles.scheduleButtonText}>Schedule Now</Text>
+         </TouchableOpacity>
+       )}
+-    </View>
++    </TouchableOpacity>
+   );
+ 
+   return (
+-    <SafeAreaView style={styles.container}>
+-      <View style={styles.header}>
+-        <TouchableOpacity onPress={() => navigation.toggleDrawer()} style={styles.menuIcon}>
+-          <Feather name="menu" size={24} color={AppColors.text} />
+-        </TouchableOpacity>
++    <AppSidebarWrapper ref={sidebarRef} navigation={navigation}>
++      <SafeAreaView style={styles.container}>
++        <View style={styles.header}>
++          <TouchableOpacity onPress={() => sidebarRef.current?.toggleDrawer()} style={styles.menuIcon}>
++            <Feather name="menu" size={24} color={AppColors.text} />
++          </TouchableOpacity>
+         <Text style={styles.headerTitle}>Track Progress</Text>
+         <TouchableOpacity style={styles.bellIcon}>
+           <Feather name="bell" size={24} color={AppColors.text} />
+@@ -54,148 +115,211 @@ export default function TrackProgressScreen({ navigation }) {
+ 
+       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+         
+-        {/* Top Info Row */}
+-        <View style={styles.topInfoRow}>
+-          <View style={styles.infoBlock}>
+-            <MaterialIcons name="event-note" size={24} color="#2563EB" />
+-            <View style={styles.infoTextContainer}>
+-              <Text style={styles.infoTitle}>Week 2 of Plan</Text>
+-              <Text style={styles.infoSubtitle}>May 6 - May 12, 2024</Text>
+-            </View>
++        {loading || !data ? (
++          <View style={{ padding: 40, alignItems: 'center' }}>
++            <ActivityIndicator size="large" color="#2563EB" />
+           </View>
+-          <View style={styles.infoBlock}>
+-            <Ionicons name="flask-outline" size={24} color="#2563EB" />
+-            <View style={styles.infoTextContainer}>
+-              <Text style={styles.infoTitle}>Next Lab Check</Text>
+-              <Text style={styles.infoHighlight}>18 days</Text>
++        ) : (
++          <>
++            {/* Top Info Row */}
++            <View style={styles.topInfoRow}>
++              <View style={styles.infoBlock}>
++                <MaterialIcons name="event-note" size={24} color="#2563EB" />
++                <View style={styles.infoTextContainer}>
++                  <Text style={styles.infoTitle}>Week 2 of Plan</Text>
++                  <Text style={styles.infoSubtitle}>May 6 - May 12, 2024</Text>
++                </View>
++              </View>
++              <View style={styles.infoBlock}>
++                <Ionicons name="flask-outline" size={24} color="#2563EB" />
++                <View style={styles.infoTextContainer}>
++                  <Text style={styles.infoTitle}>Next Lab Check</Text>
++                  <Text style={styles.infoHighlight}>{data.re_test?.days_left} days</Text>
++                </View>
++                <Feather name="chevron-right" size={20} color="#CBD5E1" />
++              </View>
+             </View>
+-            <Feather name="chevron-right" size={20} color="#CBD5E1" />
+-          </View>
+-        </View>
+ 
+-        {/* Section 1: Weekly Summary */}
+-        <View style={styles.card}>
+-          <View style={styles.summaryContainer}>
+-            <View style={styles.summaryLeft}>
+-              <Text style={styles.summaryText}>You completed</Text>
+-              <Text style={styles.summaryCount}><Text style={styles.summaryCountBold}>3</Text> of 5 actions</Text>
+-              <Text style={styles.summaryText}>this week</Text>
+-              
+-              <View style={styles.progressBarContainer}>
+-                <View style={styles.progressBarFill}>
+-                  <Text style={styles.progressPercent}>60%</Text>
++            {/* Section 1: Weekly Summary */}
++            <View style={styles.card}>
++              <View style={styles.summaryContainer}>
++                <View style={styles.summaryLeft}>
++                  <Text style={styles.summaryText}>You completed</Text>
++                  <Text style={styles.summaryCount}><Text style={styles.summaryCountBold}>{data.weekly_summary?.completed}</Text> of {data.weekly_summary?.total} actions</Text>
++                  <Text style={styles.summaryText}>this week</Text>
++                  
++                  <View style={styles.progressBarContainer}>
++                    <View style={[styles.progressBarFill, { flex: data.weekly_summary?.progress_percent || 0 }]}>
++                      <Text style={styles.progressPercent}>{data.weekly_summary?.progress_percent}%</Text>
++                    </View>
++                    <View style={[styles.progressBarEmpty, { flex: 100 - (data.weekly_summary?.progress_percent || 0) }]} />
++                  </View>
++                </View>
++                
++                <View style={styles.summaryRight}>
++                  <View style={styles.statRow}>
++                    <Ionicons name="checkmark-circle-outline" size={20} color="#10B981" />
++                    <Text style={styles.statLabel}>Completed</Text>
++                    <Text style={[styles.statValue, { color: '#10B981' }]}>{data.weekly_summary?.completed}</Text>
++                  </View>
++                  <View style={styles.statRow}>
++                    <Ionicons name="remove-circle-outline" size={20} color="#F59E0B" />
++                    <Text style={styles.statLabel}>Partial</Text>
++                    <Text style={[styles.statValue, { color: '#F59E0B' }]}>{data.weekly_summary?.partial}</Text>
++                  </View>
++                  <View style={styles.statRow}>
++                    <Ionicons name="close-circle-outline" size={20} color="#EF4444" />
++                    <Text style={styles.statLabel}>Not Started</Text>
++                    <Text style={[styles.statValue, { color: '#EF4444' }]}>{data.weekly_summary?.not_started}</Text>
++                  </View>
+                 </View>
+-                <View style={styles.progressBarEmpty} />
+               </View>
+             </View>
++
++            {/* Section 2: Action Tracker */}
++            <View style={styles.sectionHeader}>
++              <Text style={styles.sectionTitle}>Your Action Tracker</Text>
++              <TouchableOpacity><Text style={styles.linkText}>Edit Plan</Text></TouchableOpacity>
++            </View>
+             
+-            <View style={styles.summaryRight}>
+-              <View style={styles.statRow}>
+-                <Ionicons name="checkmark-circle-outline" size={20} color="#10B981" />
+-                <Text style={styles.statLabel}>Completed</Text>
+-                <Text style={[styles.statValue, { color: '#10B981' }]}>3</Text>
+-              </View>
+-              <View style={styles.statRow}>
+-                <Ionicons name="remove-circle-outline" size={20} color="#F59E0B" />
+-                <Text style={styles.statLabel}>Partial</Text>
+-                <Text style={[styles.statValue, { color: '#F59E0B' }]}>1</Text>
+-              </View>
+-              <View style={styles.statRow}>
+-                <Ionicons name="close-circle-outline" size={20} color="#EF4444" />
+-                <Text style={styles.statLabel}>Not Started</Text>
+-                <Text style={[styles.statValue, { color: '#EF4444' }]}>1</Text>
+-              </View>
++            <View style={styles.card}>
++              {data.actions?.map((action, idx) => {
++                const colorMap = {
++                  'success': '#10B981',
++                  'warning': '#F59E0B',
++                  'error': '#EF4444',
++                  'primary': '#3B82F6',
++                };
++                return (
++                  <ActionCard 
++                    key={action.id || idx}
++                    id={action.id}
++                    icon={action.icon}
++                    title={action.title}
++                    subtext={action.subtext}
++                    statusText={action.status}
++                    statusColor={colorMap[action.status_color] || '#3B82F6'}
++                    color={action.color_hex}
++                    isLast={idx === data.actions.length - 1}
++                    showSchedule={action.is_actionable}
++                  />
++                );
++              })}
+             </View>
+-          </View>
+-        </View>
+ 
+-        {/* Section 2: Action Tracker */}
+-        <View style={styles.sectionHeader}>
+-          <Text style={styles.sectionTitle}>Your Action Tracker</Text>
+-          <TouchableOpacity><Text style={styles.linkText}>Edit Plan</Text></TouchableOpacity>
+-        </View>
+-        
+-        <View style={styles.card}>
+-          <ActionCard 
+-            icon="directions-walk" title="Walk 20 minutes daily" subtext="4 of 5 days completed"
+-            statusText="On Track" statusColor="#10B981" color="#10B981"
+-          />
+-          <ActionCard 
+-            icon="cake" title="Reduce sugar intake" subtext="Improved, but above target"
+-            statusText="Partial" statusColor="#F59E0B" color="#F59E0B"
+-          />
+-          <ActionCard 
+-            icon="water-drop" title="Drink 8 glasses of water" subtext="3 of 5 days completed"
+-            statusText="Partial" statusColor="#F59E0B" color="#3B82F6"
+-          />
+-          <ActionCard 
+-            icon="fitness-center" title="Strength training 2x per week" subtext="Completed 2 of 2 this week"
+-            statusText="On Track" statusColor="#10B981" color="#8B5CF6"
+-          />
+-          <ActionCard 
+-            icon="event" title="Schedule follow-up lab test" subtext="Not started"
+-            statusText="Not Started" statusColor="#EF4444" color="#F43F5E" isLast={true} showSchedule={true}
+-          />
+-        </View>
+-
+-        {/* Section 3: AI Behavior Insight */}
+-        <View style={styles.card}>
+-          <View style={styles.cardHeader}>
+-            <View style={styles.cardHeaderLeft}>
+-              <MaterialIcons name="auto-awesome" size={20} color="#3B82F6" />
+-              <Text style={styles.cardTitle}>What We're Seeing</Text>
+-            </View>
+-            <TouchableOpacity><Text style={styles.linkText}>View Details</Text></TouchableOpacity>
+-          </View>
+-          
+-          <View style={styles.insightRow}>
+-            <MaterialIcons name="trending-up" size={24} color="#10B981" />
+-            <Text style={styles.insightText}>Your activity level increased by <Text style={{ color: '#10B981', fontWeight: 'bold' }}>22%</Text> this week</Text>
+-          </View>
+-          <View style={styles.insightRow}>
+-            <MaterialIcons name="trending-flat" size={24} color="#F59E0B" />
+-            <View>
+-              <Text style={styles.insightText}>Sugar intake still fluctuating</Text>
+-              <Text style={styles.insightSubtext}>Try reducing added sugars</Text>
++            {/* Section 3: AI Behavior Insight */}
++            <View style={styles.card}>
++              <View style={styles.cardHeader}>
++                <View style={styles.cardHeaderLeft}>
++                  <MaterialIcons name="auto-awesome" size={20} color="#3B82F6" />
++                  <Text style={styles.cardTitle}>What We're Seeing</Text>
++                </View>
++                <TouchableOpacity><Text style={styles.linkText}>View Details</Text></TouchableOpacity>
++              </View>
++              
++              {data.insights?.map((insight, idx) => {
++                const colorMap = {
++                  'success': '#10B981',
++                  'warning': '#F59E0B',
++                  'error': '#EF4444',
++                  'primary': '#3B82F6',
++                };
++                const iconColor = colorMap[insight.color] || '#3B82F6';
++                
++                // Naive bolding of percentages for simple text handling
++                const parts = insight.text.split(/(\d+%)/);
++                
++                return (
++                  <View key={idx} style={styles.insightRow}>
++                    <MaterialIcons name={getMaterialIconName(insight.icon)} size={24} color={iconColor} />
++                    <View style={{ flex: 1 }}>
++                      <Text style={styles.insightText}>
++                        {parts.map((part, pIdx) => (
++                          part.match(/\d+%/) 
++                            ? <Text key={pIdx} style={{ color: iconColor, fontWeight: 'bold' }}>{part}</Text>
++                            : part
++                        ))}
++                      </Text>
++                      {insight.subtext && <Text style={styles.insightSubtext}>{insight.subtext}</Text>}
++                    </View>
++                  </View>
++                );
++              })}
+             </View>
+-          </View>
+-          <View style={styles.insightRow}>
+-            <Ionicons name="moon" size={24} color="#3B82F6" />
+-            <Text style={styles.insightText}>You're most consistent on weekdays</Text>
+-          </View>
+-        </View>
+ 
+-        {/* Section 4: Outcome Projection */}
+-        <View style={styles.card}>
+-          <View style={styles.cardHeaderLeft}>
+-            <Ionicons name="bullseye" size={20} color="#3B82F6" />
+-            <Text style={styles.cardTitle}>If you stay on track</Text>
+-          </View>
+-          <View style={styles.projectionBox}>
+-            <MaterialIcons name="trending-up" size={28} color="#10B981" />
+-            <View style={styles.projectionTextContainer}>
+-              <Text style={styles.projectionText}>You are on track to improve your <Text style={{ color: '#10B981', fontWeight: 'bold' }}>glucose levels</Text> by your next test.</Text>
+-              <Text style={styles.projectionSubtext}>Based on your current adherence pattern</Text>
++            {/* Section 4: Outcome Projection */}
++            <View style={styles.card}>
++              <View style={styles.cardHeaderLeft}>
++                <Ionicons name="bullseye" size={20} color="#3B82F6" />
++                <Text style={styles.cardTitle}>If you stay on track</Text>
++              </View>
++              <View style={styles.projectionBox}>
++                <MaterialIcons name="trending-up" size={28} color="#10B981" />
++                <View style={styles.projectionTextContainer}>
++                  <Text style={styles.projectionText}>
++                    {data.projection?.text.split(/glucose levels/i).map((part, idx, arr) => (
++                      <React.Fragment key={idx}>
++                        {part}
++                        {idx < arr.length - 1 && <Text style={{ color: '#10B981', fontWeight: 'bold' }}>glucose levels</Text>}
++                      </React.Fragment>
++                    ))}
++                  </Text>
++                  <Text style={styles.projectionSubtext}>{data.projection?.subtext}</Text>
++                </View>
++              </View>
+             </View>
+-          </View>
+-        </View>
+ 
+-        {/* Section 5: Re-Test Trigger */}
+-        <View style={[styles.card, styles.highlightCard]}>
+-          <View style={styles.retestHeader}>
+-            <Ionicons name="flask-outline" size={32} color="#2563EB" />
+-            <View style={styles.retestTextContainer}>
+-              <Text style={styles.retestTitle}>Next Step: Re-Test</Text>
+-              <Text style={styles.retestDesc}>Your next lab test is recommended in <Text style={{ fontWeight: 'bold', color: '#2563EB' }}>18 days.</Text></Text>
++            {/* Section 5: Re-Test Trigger */}
++            <View style={[styles.card, styles.highlightCard]}>
++              <View style={styles.retestHeader}>
++                <Ionicons name="flask-outline" size={32} color="#2563EB" />
++                <View style={styles.retestTextContainer}>
++                  <Text style={styles.retestTitle}>Next Step: Re-Test</Text>
++                  <Text style={styles.retestDesc}>
++                    {data.re_test?.text.split(/(\d+ days)/).map((part, idx) => (
++                      part.match(/\d+ days/) 
++                        ? <Text key={idx} style={{ fontWeight: 'bold', color: '#2563EB' }}>{part}</Text>
++                        : part
++                    ))}
++                  </Text>
++                </View>
++              </View>
++              <TouchableOpacity style={styles.bookButton}>
++                <Text style={styles.bookButtonText}>Book Follow-Up Test</Text>
++              </TouchableOpacity>
+             </View>
+-          </View>
+-          <TouchableOpacity style={styles.bookButton}>
+-            <Text style={styles.bookButtonText}>Book Follow-Up Test</Text>
+-          </TouchableOpacity>
+-        </View>
++          </>
++        )}
++
+ 
+       </ScrollView>
+-    </SafeAreaView>
++
++      {/* Bottom Tab Bar */}
++      <View style={styles.bottomTab}>
++        <TouchableOpacity style={styles.tabItem} onPress={() => navigation.navigate('Dashboard')}>
++          <Feather name="home" size={24} color="#94A3B8" />
++          <Text style={styles.tabText}>Home</Text>
++        </TouchableOpacity>
++        <TouchableOpacity style={styles.tabItem} onPress={() => navigation.navigate('DataSources')}>
++          <Feather name="file-text" size={24} color="#94A3B8" />
++          <Text style={styles.tabText}>Results</Text>
++        </TouchableOpacity>
++        <TouchableOpacity style={styles.tabItem} onPress={() => navigation.navigate('Prediction')}>
++          <MaterialIcons name="lightbulb" size={24} color="#94A3B8" />
++          <Text style={styles.tabText}>Insights</Text>
++        </TouchableOpacity>
++        <TouchableOpacity style={styles.tabItem}>
++          <Feather name="trending-up" size={24} color={AppColors.primary} />
++          <Text style={[styles.tabText, {color: AppColors.primary}]}>Track</Text>
++        </TouchableOpacity>
++        <TouchableOpacity style={styles.tabItem} onPress={() => navigation.navigate('Settings')}>
++          <Feather name="user" size={24} color="#94A3B8" />
++          <Text style={styles.tabText}>Profile</Text>
++        </TouchableOpacity>
++      </View>
++
++      </SafeAreaView>
++    </AppSidebarWrapper>
+   );
+ }
+ 
+@@ -229,7 +353,7 @@ const styles = StyleSheet.create({
+   },
+   scrollContent: {
+     padding: 16,
+-    paddingBottom: 40,
++    paddingBottom: 100, // Account for bottom tab
+   },
+   topInfoRow: {
+     flexDirection: 'row',
+@@ -534,4 +658,19 @@ const styles = StyleSheet.create({
+     fontWeight: 'bold',
+     fontSize: 16,
+   },
++  bottomTab: { 
++    position: 'absolute', 
++    bottom: 0, 
++    left: 0, 
++    right: 0, 
++    height: 70, 
++    backgroundColor: 'white', 
++    flexDirection: 'row', 
++    justifyContent: 'space-around', 
++    alignItems: 'center', 
++    borderTopWidth: 1, 
++    borderTopColor: '#F1F5F9' 
++  },
++  tabItem: { alignItems: 'center', justifyContent: 'center' },
++  tabText: { fontSize: 10, fontWeight: 'bold', marginTop: 4, color: '#94A3B8' },
+ });

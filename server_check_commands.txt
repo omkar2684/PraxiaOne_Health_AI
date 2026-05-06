@@ -1,0 +1,46 @@
+### SERVER CAPABILITY & RUNNING SERVICES CHECK COMMANDS ###
+You can copy-paste these commands into your mentor's server terminal (or your friend's PC terminal if it's Linux/Mac) to safely check what is currently installed and running without modifying or stopping anything.
+
+--- 1. CHECK DOCKER (Very safe) ---
+Check if docker is installed:
+docker --version
+docker-compose --version
+
+Check what docker containers are currently running (this will show if mysql, redis, qdrant, or ollama are already containerized):
+sudo docker ps
+
+--- 2. CHECK DATABASES (MySQL / Redis) ---
+Check if a native MySQL/MariaDB service is running:
+systemctl status mysql || systemctl status mariadb
+ps -ef | grep -i mysql
+netstat -tuln | grep 3306
+
+Check if Redis is running natively:
+systemctl status redis
+ps -ef | grep -i redis
+netstat -tuln | grep 6379
+
+--- 3. CHECK AI & VECTOR DATABASES (Ollama / Qdrant) ---
+Check if Qdrant is running (it usually runs on port 6333):
+curl -s http://localhost:6333 || echo "Qdrant not answering on 6333"
+
+Check if Ollama is running natively:
+systemctl status ollama
+curl -s http://localhost:11434/api/tags || echo "Ollama not answering on 11434"
+
+--- 4. CHECK NODE.JS & NPM ---
+node -v
+npm -v
+
+--- 5. CHECK PYTHON ---
+python3 -V
+pip3 -V
+
+--- 6. CHECK FOR EXISTING WEB SERVERS (Nginx / Apache / Django / Node apps) ---
+See what applications are currently listening on web ports (80, 443, 3000, 8000):
+sudo netstat -tulpn | grep LISTEN
+ps -ef | grep -E 'gunicorn|node|nginx|apache2'
+
+--- 7. CHECK FIREWALL (Important for your friend's PC and Mentor's server) ---
+See which ports are open to the outside world:
+sudo ufw status

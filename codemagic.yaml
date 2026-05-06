@@ -1,0 +1,43 @@
+workflows:
+  ios-release-workflow:
+    name: PraxiaOne iOS Build
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    working_directory: praxia_mobile_app
+    environment:
+      flutter: stable
+      xcode: 26.2 
+    scripts:
+      - name: Prepare Flutter
+        script: |
+          flutter pub get
+          flutter precache --ios
+          flutter build ios --config-only --no-codesign
+      - name: Install CocoaPods
+        script: |
+          cd ios
+          rm -rf Pods
+          rm -f Podfile.lock
+          pod install
+      - name: Build Unsigned iOS App
+        script: |
+          # 1. Build the raw .app file (this succeeds without codesigning)
+          flutter build ios --release --no-codesign -t lib/main.dart
+          
+          # 2. Navigate to where the .app was built
+          cd build/ios/iphoneos
+          
+          # 3. Manually create the Payload folder structure required for an IPA
+          mkdir Payload
+          cp -R Runner.app Payload
+          
+          # 4. Zip it into a file named praxia_mobile.ipa
+          zip -q -r praxia_mobile.ipa Payload
+    artifacts:
+      # Tell Codemagic to grab the IPA we just manually created
+      - build/ios/iphoneos/*.ipa
+    publishing:
+      email:
+        recipients:
+          - omkarambar@gmail.com
+          
