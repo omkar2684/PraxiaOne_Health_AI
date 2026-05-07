@@ -35,11 +35,23 @@ export default function RecommendationScreen({ navigation }) {
     setLoading(false);
   };
 
-  const startPlan = async (id) => {
-    setStartingPlan(id);
-    await AsyncStorage.setItem(`plan_active_${id}`, 'true');
-    setActivePlans(prev => ({ ...prev, [id]: true }));
-    setStartingPlan(null);
+  const startPlan = async (rec) => {
+    setStartingPlan(rec.id);
+    try {
+      // Save to database so it shows up in Track Progress
+      await ApiService.saveAiActions([{
+        title: rec.title,
+        subtitle: rec.subtitle || rec.description,
+        icon: rec.icon || 'star'
+      }]);
+      
+      await AsyncStorage.setItem(`plan_active_${rec.id}`, 'true');
+      setActivePlans(prev => ({ ...prev, [rec.id]: true }));
+    } catch (e) {
+      console.error("Error starting plan:", e);
+    } finally {
+      setStartingPlan(null);
+    }
   };
 
   if (loading) {
@@ -109,7 +121,7 @@ export default function RecommendationScreen({ navigation }) {
 
                   <TouchableOpacity 
                     style={[styles.startBtn, isActive && {backgroundColor: '#047857'}]} 
-                    onPress={() => isActive ? navigation.navigate('Dashboard') : startPlan(rec.id)}
+                    onPress={() => isActive ? navigation.navigate('Dashboard') : startPlan(rec)}
                     disabled={isStarting}
                   >
                     {isStarting ? (

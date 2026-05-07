@@ -14,6 +14,17 @@ export default function AiInsightsScreen({ route, navigation }) {
 
   useEffect(() => {
     const fetchData = async () => {
+      // If we didn't just upload new biomarkers, try to fetch the latest insights from the database
+      if (passedBiomarkers.length === 0) {
+        const data = await ApiService.getLatestBiomarkersAndInsights();
+        if (data && data.latest_insights) {
+          setData(data.latest_insights);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Otherwise, generate new insights from the passed biomarkers
       const result = await ApiService.getAiInsights(passedBiomarkers);
       if (result) {
         // Sort top findings: High/Low first, Normal last

@@ -26,7 +26,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final r = await ApiService.login(_u.text.trim(), _p.text.trim());
     if (mounted) {
       if (r['success']) {
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DataSourcesScreen()));
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => DataSourcesScreen()));
       } else {
         setState(() { _l = false; _err = r['error'] ?? 'Login failed'; });
       }

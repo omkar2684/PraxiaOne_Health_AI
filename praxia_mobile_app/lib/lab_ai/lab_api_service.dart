@@ -16,16 +16,20 @@ class LabApiService {
       List<Biomarker> biomarkers) async {
     final uri = Uri.parse('$_baseUrl/insights/');
 
+    final token = await ApiService.getToken();
     final response = await http
         .post(
           uri,
-          headers: {'Content-Type': 'application/json'},
+          headers: {
+            'Content-Type': 'application/json',
+            if (token != null) 'Authorization': 'Bearer $token',
+          },
           body: jsonEncode({
             'biomarkers': biomarkers.map((b) => b.toJson()).toList(),
           }),
         )
         .timeout(
-          const Duration(seconds: 120), // DeepSeek inference can take time
+          const Duration(seconds: 600), // DeepSeek inference can take time
           onTimeout: () =>
               throw Exception('Request timed out — Ollama may still be loading the model.'),
         );

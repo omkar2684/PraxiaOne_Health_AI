@@ -424,8 +424,58 @@ class TrackProgressView(APIView):
             }
         })
 
+    def post(self, request):
+        # Save AI generated actions
+        actions = request.data.get('actions', [])
+        for a in actions:
+            # Avoid duplicates by title
+            if not ActionTask.objects.filter(user=request.user, title=a['title']).exists():
+                ActionTask.objects.create(
+                    user=request.user,
+                    title=a['title'],
+                    subtext=a.get('subtitle') or a.get('subtext') or 'Added from AI insights',
+                    icon=a.get('icon', 'star'),
+                    status="Not Started",
+                    status_color="error",
+                    color_hex="#EF4444",
+                    is_ai_generated=True,
+                    days_completed=[False] * 7
+                )
+        
+        # Return all tasks so frontend gets IDs
+        tasks = ActionTask.objects.filter(user=request.user)
+        actions_data = []
+        for t in tasks:
+            actions_data.append({
+                "id": t.id,
+                "title": t.title,
+                "subtext": t.subtext,
+                "icon": t.icon,
+                "status": t.status,
+                "status_color": t.status_color,
+                "color_hex": t.color_hex,
+                "days_completed": t.days_completed,
+                "is_actionable": t.is_actionable,
+                "is_ai_generated": t.is_ai_generated
+            })
+        return Response({"status": "success", "actions": actions_data})
+
+class UpdateActionTaskView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    def patch(self, request, task_id):
+        try:
+            task = ActionTask.objects.get(id=task_id, user=request.user)
+            task.status = request.data.get('status', task.status)
+            task.status_color = request.data.get('status_color', task.status_color)
+            task.color_hex = request.data.get('color_hex', task.color_hex)
+            task.days_completed = request.data.get('days_completed', task.days_completed)
+            task.save()
+            return Response({"status": "success"})
+        except ActionTask.DoesNotExist:
+            return Response({"error": "Task not found"}, status=404)
+
 class TrackProgressInsightsView(APIView):
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
     
     def post(self, request):
         actions = request.data.get("actions", [])
@@ -437,30 +487,78 @@ class TrackProgressInsightsView(APIView):
                 "signals": []
             })
             
+        from core.ai_memory import search_user_docs
+        
+        # 1. Fetch Latest Vitals & Mock Wearable Data
+        vitals = VitalsEntry.objects.filter(user=request.user).first()
+        
+        # Simulated Wearable Data (Dummy data as requested)
+        wearable_data = {
+            "steps": "8,432 (Avg last 7 days)",
+            "sleep_duration": "7h 12m",
+            "resting_heart_rate": "64 bpm",
+            "active_minutes": "45 min",
+            "sleep_quality": "Good (82/100)"
+        }
+        
+        clinical_vitals = {}
+        if vitals:
+            clinical_vitals = {
+                "oxygen": f"{vitals.oxygen_level}%",
+                "pulse": f"{vitals.pulse_rate} bpm",
+                "sugar": f"{vitals.sugar_level} mg/dL",
+                "bp": f"{vitals.bp_systolic}/{vitals.bp_diastolic}" if vitals.bp_systolic else None
+            }
+            
+        # 2. Fetch Recent Health Document Chunks
+        doc_hits = search_user_docs(user_id=request.user.id, query="biomarkers laboratory results glucose cholesterol hba1c", limit=5)
+        doc_context = "\n".join([h['text'] for h in doc_hits])
+
         prompt = f"""
-        You are a medical AI. The user is currently tracking these health actions: {json.dumps(actions)}
+        You are a medical AI assistant for PraxiaOne. 
+        The user is currently tracking these health actions: {json.dumps(actions)}
         
-        Generate a JSON response with:
-        1. 'insights': A short, simple explanation of how these actions are helping (e.g., 'Walking helps regulate blood sugar'). Return an array of objects with 'icon' (e.g. 'trending_up', 'directions_walk'), 'text', 'subtext', and 'color' (success, warning, primary).
-        2. 'projection': What happens if they stay on track. Object with 'text' and 'subtext', plus an array of 'biomarkers' showing projected improvements (e.g., {{"name": "Fasting Glucose", "improvement": "-12%", "from_to": "From 102 to ~90 mg/dL", "trend": "down"}}).
-        3. 're_test': A personalized recommendation for when to re-test based on the actions' severity. Object with 'days_left' (integer) and 'text' (explanation).
-        4. 'signals': Improvement signals so far. Array of objects with 'name' (e.g., Activity, Sleep) and 'value' (e.g., "+22%").
+        Wearable Device Data (Simulated): {json.dumps(wearable_data)}
+        Clinical Vitals (Latest): {json.dumps(clinical_vitals)}
         
-        Return ONLY valid JSON. No markdown formatting.
+        Recent Medical Context from Uploaded PDFs:
+        {doc_context[:2000]}
+
+        Based on the above combined DATA (actions + wearable trends + vitals + history), generate a JSON response.
+        CRITICAL: Your 'projection' and 'signals' MUST be a direct reflection of the 'status' of their actions.
+        - If actions are mostly 'On Track', show significant biomarker improvements (e.g., -12% to -18%).
+        - If actions are 'Partial', show moderate improvements (e.g., -5% to -8%).
+        - If actions are 'Not Started', show NO improvement or slight worsening.
+        
+        Generate:
+        1. 'insights': A short explanation of how their progress is helping. Return array of objects with 'icon', 'text', 'subtext', 'color'.
+        2. 'projection': Proportional health outcomes. Include at least 2 biomarkers with 'name', 'improvement', 'from_to', 'trend'.
+        3. 're_test': Recommendation with 'days_left' and 'text'.
+        4. 'signals': Improvement signals based on current status. Array of objects with 'name' and 'value'.
+        
+        Return ONLY valid JSON. No markdown.
         """
         
         try:
             from core.mock_llm import call_ollama_pipeline, DEEPSEEK_MODEL
-            import re, json
             llm_res = call_ollama_pipeline(prompt, DEEPSEEK_MODEL)
             match = re.search(r'\{.*\}', llm_res, re.DOTALL)
             if match:
-                data = json.loads(match.group(0))
-                return Response(data)
+                res_data = json.loads(match.group(0))
+                # Ensure structure is correct
+                if 'projection' not in res_data or 'biomarkers' not in res_data['projection']:
+                    res_data['projection'] = {
+                        "text": "Your adherence is showing positive trends.",
+                        "subtext": "Based on current progress",
+                        "biomarkers": [
+                            {"name": "General Health Score", "improvement": "+5%", "from_to": "Improving", "trend": "up"}
+                        ]
+                    }
+                return Response(res_data)
             else:
                 return Response({"error": "Failed to parse AI response"}, status=500)
         except Exception as e:
-            return Response({"error": str(e)}, status=500)
+            return Response({"error": f"AI Generation Error: {str(e)}"}, status=500)
 
 # --- PDF & Auth Endpoints ---
 from io import BytesIO

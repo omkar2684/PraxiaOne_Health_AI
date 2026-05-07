@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../core/app_theme.dart';
 import '../../lab_ai/lab_models.dart';
 import '../../lab_ai/lab_api_service.dart';
+import '../../api_service.dart';
 import 'ai_insights_screen.dart';
 
 // Default biomarker panel — matches the backend test payload.
@@ -47,11 +48,47 @@ class LabResultsScreen extends StatefulWidget {
 
 class _LabResultsScreenState extends State<LabResultsScreen> {
   bool _isLoading = false;
+  bool _isFetching = true;
+  List<Biomarker> _biomarkers = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchLatestBiomarkers();
+  }
+
+  Future<void> _fetchLatestBiomarkers() async {
+    try {
+      final data = await ApiService.getLatestInsights();
+      if (data.containsKey('latest_biomarkers') && data['latest_biomarkers'] != null) {
+        final List<dynamic> rawList = data['latest_biomarkers'];
+        if (rawList.isNotEmpty) {
+          setState(() {
+            _biomarkers = rawList.map((b) => Biomarker(
+              name: b['name'] ?? '',
+              value: double.tryParse(b['value'].toString()) ?? 0,
+              unit: b['unit'] ?? '',
+            )).toList();
+            _isFetching = false;
+          });
+          return;
+        }
+      }
+    } catch (e) {
+      debugPrint("Error fetching latest biomarkers: $e");
+    }
+    
+    // Fallback if none found
+    setState(() {
+      _biomarkers = _defaultBiomarkers;
+      _isFetching = false;
+    });
+  }
 
   Future<void> _onViewInsights() async {
     setState(() => _isLoading = true);
     try {
-      final response = await LabApiService.getInsights(_defaultBiomarkers);
+      final response = await LabApiService.getInsights(_biomarkers);
       if (!mounted) return;
       Navigator.push(
         context,
@@ -122,18 +159,18 @@ class _LabResultsScreenState extends State<LabResultsScreen> {
                         color: Colors.white, size: 24),
                   ),
                   const SizedBox(width: 14),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Annual Blood Panel',
+                        const Text('Annual Blood Panel',
                             style: TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w800,
                                 fontSize: 16)),
-                        SizedBox(height: 2),
-                        Text('6 biomarkers · May 2026',
-                            style: TextStyle(
+                        const SizedBox(height: 2),
+                        Text('${_biomarkers.length} biomarkers · ${DateTime.now().year}',
+                            style: const TextStyle(
                                 color: Colors.white70, fontSize: 12)),
                       ],
                     ),
@@ -146,15 +183,17 @@ class _LabResultsScreenState extends State<LabResultsScreen> {
 
             // ── Biomarker list ──────────────────────────────────────────
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                itemCount: _defaultBiomarkers.length,
-                itemBuilder: (_, i) {
-                  final b = _defaultBiomarkers[i];
-                  final info = _refStatus(b);
-                  return _BiomarkerCard(biomarker: b, statusInfo: info);
-                },
-              ),
+              child: _isFetching 
+                ? const Center(child: CircularProgressIndicator()) 
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    itemCount: _biomarkers.length,
+                    itemBuilder: (_, i) {
+                      final b = _biomarkers[i];
+                      final info = _refStatus(b);
+                      return _BiomarkerCard(biomarker: b, statusInfo: info);
+                    },
+                  ),
             ),
 
             // ── Bottom button ───────────────────────────────────────────

@@ -22,26 +22,34 @@ export default function OutcomeSimulationScreen({ route, navigation }) {
         <Text style={styles.subtitle}>Projected Improvement by Next Test (in ~18 days)</Text>
 
         <View style={styles.cardsContainer}>
-          {biomarkers.map((b, idx) => {
-            const isUp = b.trend === 'up';
-            const color = isUp ? '#059669' : '#2563EB';
+          {biomarkers.length > 0 ? (
+            biomarkers.map((b, idx) => {
+              const isUp = b.trend === 'up';
+              const color = isUp ? '#059669' : '#2563EB';
 
-            return (
-              <View key={idx} style={styles.card}>
-                <View style={styles.cardHeader}>
-                  <View style={styles.cardHeaderLeft}>
-                    <MaterialIcons name={isUp ? 'arrow-upward' : 'arrow-downward'} size={20} color={color} />
-                    <Text style={styles.biomarkerName}>{b.name}</Text>
+              return (
+                <View key={idx} style={styles.card}>
+                  <View style={styles.cardHeader}>
+                    <View style={styles.cardHeaderLeft}>
+                      <MaterialIcons name={isUp ? 'arrow-upward' : 'arrow-downward'} size={20} color={color} />
+                      <Text style={styles.biomarkerName}>{b.name}</Text>
+                    </View>
+                    <Text style={[styles.improvement, { color }]}>{b.improvement}</Text>
                   </View>
-                  <Text style={[styles.improvement, { color }]}>{b.improvement}</Text>
+                  <Text style={styles.fromTo}>({b.from_to})</Text>
+                  <View style={styles.progressBarBg}>
+                    <View style={[styles.progressBarFill, { backgroundColor: color, width: '70%' }]} />
+                  </View>
                 </View>
-                <Text style={styles.fromTo}>({b.from_to})</Text>
-                <View style={styles.progressBarBg}>
-                  <View style={[styles.progressBarFill, { backgroundColor: color, width: '70%' }]} />
-                </View>
-              </View>
-            );
-          })}
+              );
+            })
+          ) : (
+            <View style={styles.emptyState}>
+              <MaterialIcons name="insights" size={48} color="#CBD5E1" />
+              <Text style={styles.emptyText}>Analyzing your latest progress...</Text>
+              <Text style={styles.emptySub}>Check back in a moment as we calculate your personalized projections.</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.infoBox}>
@@ -52,7 +60,7 @@ export default function OutcomeSimulationScreen({ route, navigation }) {
 
         <TouchableOpacity 
           style={styles.primaryButton}
-          onPress={() => navigation.navigate('OutcomeSignal')}
+          onPress={() => navigation.navigate('OutcomeSignal', { signals: route.params?.signals })}
         >
           <Text style={styles.primaryButtonText}>Next: Outcome Signal</Text>
         </TouchableOpacity>
@@ -82,4 +90,7 @@ const styles = StyleSheet.create({
   infoText: { fontSize: 12, color: '#475569', textAlign: 'center', lineHeight: 18 },
   primaryButton: { backgroundColor: '#1E3A8A', borderRadius: 14, height: 54, justifyContent: 'center', alignItems: 'center' },
   primaryButtonText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
+  emptyState: { alignItems: 'center', justifyContent: 'center', padding: 40, backgroundColor: '#FFF', borderRadius: 16, borderStyle: 'dashed', borderWidth: 2, borderColor: '#CBD5E1' },
+  emptyText: { fontSize: 16, fontWeight: 'bold', color: '#64748B', marginTop: 16, textAlign: 'center' },
+  emptySub: { fontSize: 12, color: '#94A3B8', marginTop: 8, textAlign: 'center', lineHeight: 18 },
 });

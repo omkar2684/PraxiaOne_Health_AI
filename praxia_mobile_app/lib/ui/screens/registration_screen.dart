@@ -3,6 +3,7 @@ import '../../api_service.dart';
 import '../../core/app_theme.dart';
 import '../components/praxia_button.dart';
 import 'login_screen.dart';
+import 'data_sources_screen.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({Key? key}) : super(key: key);
@@ -47,8 +48,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         // Auto-login after successful registration (optional, but matching web flow)
         final rl = await ApiService.login(_u.text.trim(), _p.text.trim());
         if (rl['success'] && mounted) {
-          // Go to success screen, skip to login for now
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+          // Go directly to Data Sources or Dashboard since login succeeded
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => DataSourcesScreen()));
         } else {
           Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
         }

@@ -53,9 +53,13 @@ class _EditMedicalInfoScreenState extends State<EditMedicalInfoScreen> {
   }
 
   Future<void> _downloadPDF() async {
-    final url = Uri.parse('http://192.168.29.189:8000/api/generate-pdf/?type=medical');
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url);
+    try {
+      final url = Uri.parse('${ApiService.baseUrl}/generate-pdf/?type=medical');
+      if (await canLaunchUrl(url)) {
+        await launchUrl(url, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      debugPrint('Error launching PDF: $e');
     }
   }
 

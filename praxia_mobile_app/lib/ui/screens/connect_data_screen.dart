@@ -19,6 +19,7 @@ class _ConnectDataScreenState extends State<ConnectDataScreen> {
   final List<Map<String, dynamic>> staticItems = [
     {
       'title': 'Lab Results',
+      'backendDocType': 'lab_result',
       'image': 'public/connect_data/lab_result.png',
       'buttonLabel': 'Upload',
       'buttonIcon': Icons.arrow_upward_rounded,
@@ -26,6 +27,7 @@ class _ConnectDataScreenState extends State<ConnectDataScreen> {
     },
     {
       'title': 'Care Plan',
+      'backendDocType': 'care_plan',
       'image': 'public/connect_data/care_plan_1.png',
       'buttonLabel': 'Upload',
       'buttonIcon': Icons.arrow_upward_rounded,
@@ -33,6 +35,7 @@ class _ConnectDataScreenState extends State<ConnectDataScreen> {
     },
     {
       'title': 'Health Report',
+      'backendDocType': 'lab_result', // Default to lab_result for now
       'image': 'public/connect_data/health_report.png',
       'buttonLabel': 'Self Submit',
       'buttonIcon': Icons.arrow_upward_rounded,
@@ -288,7 +291,7 @@ class _ConnectDataScreenState extends State<ConnectDataScreen> {
               ),
               const SizedBox(width: 14),
               Expanded(child: Text(item['title'] as String, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF1D3B5A)))),
-              _buildActionButton(item['buttonLabel'] as String, item['buttonIcon'] as IconData, false, () => _uploadDocument(item['title'] as String)),
+              _buildActionButton(item['buttonLabel'] as String, item['buttonIcon'] as IconData, false, () => _uploadDocument(item['backendDocType'] as String)),
             ],
           ),
         ),

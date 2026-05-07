@@ -131,6 +131,38 @@ export const ApiService = {
     return {};
   },
 
+  saveAiActions: async (actions) => {
+    const token = await AsyncStorage.getItem('token');
+    try {
+      const response = await fetch(`${baseUrl}/track-progress/`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ actions }),
+      });
+      if (response.ok) return await response.json();
+    } catch (e) {}
+    return null;
+  },
+
+  updateActionTask: async (taskId, data) => {
+    const token = await AsyncStorage.getItem('token');
+    try {
+      const response = await fetch(`${baseUrl}/track-progress/task/${taskId}/`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+      return response.ok;
+    } catch (e) {}
+    return false;
+  },
+
   getRiskFactors: async () => {
     const token = await AsyncStorage.getItem('token');
     try {
@@ -150,6 +182,19 @@ export const ApiService = {
       explanation_title: "Why am I seeing this?",
       explanation_text: "Based on your recent lab results, wearable sleep data, and daily step count, our AI detects a pattern that correlates with elevated cardiovascular risk. Improving your sleep consistency and adding 20 minutes of daily activity can help stabilize your LDL and overall metabolic health."
     };
+  },
+
+  getLatestBiomarkersAndInsights: async () => {
+    const token = await AsyncStorage.getItem('token');
+    try {
+      const response = await fetch(`${baseUrl}/apps/ai_insights/latest/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) return await response.json();
+    } catch (e) {
+      console.error(e);
+    }
+    return null;
   },
 
   getRecommendations: async () => {
@@ -233,7 +278,12 @@ export const ApiService = {
     try {
       const formData = new FormData();
       formData.append('title', docType);
-      formData.append('doc_type', docType);
+      
+      let backendDocType = docType.toLowerCase().replace(' ', '_');
+      if (backendDocType === 'lab_results') backendDocType = 'lab_result';
+      if (backendDocType === 'health_report') backendDocType = 'insurance_policy';
+      
+      formData.append('doc_type', backendDocType);
       
       // Need to infer MIME type based on extension in React Native
       const fileType = fileUri.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg';

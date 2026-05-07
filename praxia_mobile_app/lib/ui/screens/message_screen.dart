@@ -85,7 +85,7 @@ class _MessageScreenState extends State<MessageScreen> {
 
     String finalMessage = text;
     if (fileToSend != null) {
-      final res = await ApiService.uploadDocument(fileToSend.path!, fileToSend.name, 'Message Attachment');
+      final res = await ApiService.uploadDocument(fileToSend.path!, fileToSend.name, 'lab_result');
       if (res.containsKey('id')) {
         finalMessage += (finalMessage.isEmpty ? "" : "\n\n") + "*(Attached: ${fileToSend.name})*";
       }

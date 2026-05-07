@@ -103,6 +103,20 @@ export default function ConnectDataScreen({ navigation }) {
     }
   };
 
+  const [isScanning, setIsScanning] = useState(false);
+  const [deviceFound, setDeviceFound] = useState(null);
+
+  const handleScan = () => {
+    setIsScanning(true);
+    setDeviceFound(null);
+    // Simulate Expo Go safe Bluetooth scanning
+    setTimeout(() => {
+      setIsScanning(false);
+      setDeviceFound('Praxia 5G Device');
+      Alert.alert("Success", "Successfully connected to Praxia 5G Device via Bluetooth!");
+    }, 3000);
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -117,8 +131,31 @@ export default function ConnectDataScreen({ navigation }) {
         
         <View style={styles.timelineCont}>
           <View style={styles.timelineLine} />
+
+          <Text style={styles.sectionLabel}>DEVICES</Text>
           
-          <Text style={styles.sectionLabel}>DOCUMENT UPLOADS</Text>
+          <View style={styles.card}>
+            <View style={styles.iconBox}>
+              <MaterialIcons name="bluetooth" size={28} color="#2563EB" />
+            </View>
+            <View style={{flex: 1, marginLeft: 10}}>
+              <Text style={[styles.cardTitle, {marginLeft: 0, marginBottom: 4}]}>Bluetooth Wearable</Text>
+              <Text style={{fontSize: 12, color: 'gray'}}>{deviceFound ? `Connected to ${deviceFound}` : 'Scan for nearby devices'}</Text>
+            </View>
+            <TouchableOpacity 
+              style={[styles.uploadBtn, {backgroundColor: deviceFound ? '#10B981' : AppColors.primary}]} 
+              onPress={handleScan}
+              disabled={isScanning || deviceFound}
+            >
+              {isScanning ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <Text style={styles.uploadBtnText}>{deviceFound ? 'Connected ✓' : 'Scan'}</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+          
+          <Text style={[styles.sectionLabel, {marginTop: 10}]}>DOCUMENT UPLOADS</Text>
 
           <View style={styles.card}>
             <View style={styles.iconBox}>
@@ -218,7 +255,6 @@ export default function ConnectDataScreen({ navigation }) {
             </View>
           )}
 
-        </View>
       </ScrollView>
     </SafeAreaView>
   );

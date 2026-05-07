@@ -29,42 +29,20 @@ class _TrackProgressScreenState extends State<TrackProgressScreen> {
   Future<void> _fetchProgressData() async {
     try {
       final response = await ApiService.getTrackProgress();
-      final prefs = await SharedPreferences.getInstance();
-      final allRecs = await ApiService.getRecommendations() ?? [];
-      
-      List<dynamic> dynamicActions = [];
-      for (var r in allRecs) {
-        if (prefs.getBool('plan_active_${r['id']}') == true) {
-          dynamicActions.add({
-            'title': r['title'],
-            'subtext': r['description'] ?? '',
-            'icon': r['icon'] ?? 'event',
-            'color_hex': '#3B82F6',
-            'status': 'Not Started',
-            'status_color': 'error',
-            'is_actionable': false
-          });
-        }
-      }
 
       if (mounted) {
         setState(() {
           _data = response;
-          if (dynamicActions.isNotEmpty) {
-            _data!['actions'] = dynamicActions;
-            _data!['weekly_summary']['total'] = dynamicActions.length;
-            _data!['weekly_summary']['completed'] = 0;
-            _data!['weekly_summary']['partial'] = 0;
-            _data!['weekly_summary']['not_started'] = dynamicActions.length;
-            _data!['weekly_summary']['progress_percent'] = 0;
-            
-            // Initialize completed days tracking
-            for (int i = 0; i < dynamicActions.length; i++) {
-              _actionDaysCompleted[i] = List.filled(7, false);
-            }
-          } else {
+          
+          if (_data != null && _data!['actions'] != null) {
             for (int i = 0; i < _data!['actions'].length; i++) {
-               _actionDaysCompleted[i] = List.filled(7, false);
+               final action = _data!['actions'][i];
+               final List<dynamic>? backendDays = action['days_completed'];
+               if (backendDays != null && backendDays.length == 7) {
+                 _actionDaysCompleted[i] = backendDays.map((e) => e == true).toList();
+               } else {
+                 _actionDaysCompleted[i] = List.filled(7, false);
+               }
             }
           }
           _isLoading = false;
@@ -96,7 +74,7 @@ class _TrackProgressScreenState extends State<TrackProgressScreen> {
     }
   }
 
-  void _toggleDay(int actionIndex, int dayIndex) {
+  void _toggleDay(int actionIndex, int dayIndex) async {
     setState(() {
       _actionDaysCompleted[actionIndex]![dayIndex] = !_actionDaysCompleted[actionIndex]![dayIndex];
       
@@ -131,6 +109,19 @@ class _TrackProgressScreenState extends State<TrackProgressScreen> {
         'progress_percent': progress
       };
     });
+
+    // Sync to backend
+    try {
+      final actionId = _data!['actions'][actionIndex]['id'];
+      if (actionId != null) {
+        await ApiService.updateActionTask(actionId, {
+          'days_completed': _actionDaysCompleted[actionIndex],
+          'status': _data!['actions'][actionIndex]['status'],
+        });
+      }
+    } catch (e) {
+      debugPrint("Failed to sync action toggle: $e");
+    }
   }
 
   Color _hexToColor(String code) {

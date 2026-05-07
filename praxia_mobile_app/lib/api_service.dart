@@ -7,7 +7,7 @@ class ApiService {
   // DEPLOYMENT SETTING:
   // REPLACE THIS IP WITH YOUR FRIEND'S PC IP OR MENTOR'S SERVER IP
   // (If configuring HTTPS in production: 'https://api.yourdomain.com/api')
-  static const String serverIp = '10.0.2.2'; // Android Emulator localhost
+  static const String serverIp = '192.168.1.10'; // PC's Wi-Fi IP Address
   static const String baseUrl = 'http://$serverIp:8000/api';
   // -------------------------------------------------------------
 
@@ -45,7 +45,7 @@ class ApiService {
   static Future<Map<String, dynamic>> register(Map<String, dynamic> userData) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/register/'),
+        Uri.parse('$baseUrl/auth/register/'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(userData),
       );
@@ -513,5 +513,41 @@ class ApiService {
       return {'error': 'Parse failed: $e'};
     }
     return {'error': 'Parse failed'};
+  }
+
+  static Future<Map<String, dynamic>> getLatestInsights() async {
+    final token = await getToken();
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/insights/latest/'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+    } catch (e) {
+      // Return empty structures on failure
+    }
+    return {'latest_biomarkers': [], 'latest_insights': null};
+  }
+
+  static Future<bool> updateActionTask(int id, Map<String, dynamic> data) async {
+    final token = await getToken();
+    try {
+      final response = await http.patch(
+        Uri.parse('$baseUrl/track-progress/'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'id': id, ...data}),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
   }
 }

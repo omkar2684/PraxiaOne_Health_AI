@@ -13,6 +13,8 @@ from rest_framework.views import APIView
 from rest_framework import permissions
 from rest_framework.response import Response
 from sentence_transformers import SentenceTransformer
+from qdrant_client import QdrantClient
+from qdrant_client.models import PointStruct, VectorParams, Distance, Filter, FieldCondition, MatchValue
 
 # --- File text extraction ---
 def _extract_text_from_file(path: str, max_size_mb: int = 20) -> str:
@@ -54,9 +56,32 @@ def _extract_text_from_file(path: str, max_size_mb: int = 20) -> str:
                     text_parts.append(f"\n[DOCUMENT PAGE {i+1}]\n{page_text}")
             full_text = "\n\n".join(text_parts).strip()
             
+            # --- OCR FALLBACK FOR SCANNED PDFs ---
+            if not full_text:
+                try:
+                    import fitz  # PyMuPDF
+                    import pytesseract
+                    from PIL import Image
+                    import io
+
+                    doc = fitz.open(path)
+                    ocr_parts = []
+                    for i, page in enumerate(doc):
+                        pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # 2x scale for better OCR
+                        img_bytes = pix.tobytes("png")
+                        img = Image.open(io.BytesIO(img_bytes))
+                        
+                        page_text = pytesseract.image_to_string(img).strip()
+                        if page_text:
+                            ocr_parts.append(f"\n[DOCUMENT PAGE {i+1} (OCR)]\n{page_text}")
+                    full_text = "\n\n".join(ocr_parts).strip()
+                    doc.close()
+                except Exception as e:
+                    print(f"--- [PDF OCR FAILED] --- {e}")
+            
             print(f"--- [PDF EXTRACTION] --- File: {os.path.basename(path)} | Chars: {len(full_text)}")
             if not full_text:
-                return "[Warning: PDF seems to contain no text. Might be an image/scan.]"
+                return "[No text could be extracted from this PDF]"
         except Exception as e:
             return f"[Error extracting PDF: {str(e)}]"
 
@@ -108,7 +133,6 @@ def _chunk_text(text: str, chunk_size: int = 1000, overlap: int = 200) -> List[s
 
 # --- Qdrant & Embedding Helpers ---
 def get_qdrant():
-    from qdrant_client import QdrantClient
     return QdrantClient(url=getattr(settings, "QDRANT_URL", "http://localhost:6333"))
 
 def get_qdrant_collection() -> str:
@@ -116,7 +140,6 @@ def get_qdrant_collection() -> str:
     return getattr(settings, "QDRANT_COLLECTION", "praxiaone_health_memory_v2")
 
 def ensure_collection_exists(client) -> None:
-    from qdrant_client.models import VectorParams, Distance
     collection = get_qdrant_collection()
     try:
         if not client.collection_exists(collection):
@@ -138,7 +161,6 @@ def embed_text(text: str) -> List[float]:
 
 # --- Main Ingestion Logic ---
 def ingest_uploaded_document(*, user_id: int, doc_id: int, doc_type: str, title: str, file_path: str) -> Dict[str, Any]:
-    from qdrant_client.models import PointStruct
     import os
     
     # 1. Verify file exists
@@ -191,7 +213,6 @@ def ingest_uploaded_document(*, user_id: int, doc_id: int, doc_type: str, title:
 
 # --- Retrieval Primitives ---
 def search_user_docs(*, user_id: int, query: str, limit: int = 15, doc_id: Optional[int] = None) -> List[Dict[str, Any]]:
-    from qdrant_client.models import Filter, FieldCondition, MatchValue
     client = get_qdrant()
     collection = get_qdrant_collection()
     query_vec = embed_text(query)
@@ -208,13 +229,13 @@ def search_user_docs(*, user_id: int, query: str, limit: int = 15, doc_id: Optio
     qfilter = Filter(must=must_conditions)
 
     try:
-        results = client.search(
+        results = client.query_points(
             collection_name=collection,
-            query_vector=query_vec,
+            query=query_vec,
             query_filter=qfilter,
             limit=limit,
             with_payload=True
-        )
+        ).points
         
         print(f"\n[QDRANT SEARCH] Found {len(results)} chunks for User {user_id} (doc_id={doc_id})")
         
@@ -231,7 +252,6 @@ def search_user_docs(*, user_id: int, query: str, limit: int = 15, doc_id: Optio
         return []
 
 def search_user_memories(*, user_id: int, query: str, limit: int = 5) -> List[Dict[str, Any]]:
-    from qdrant_client.models import Filter, FieldCondition, MatchValue
     client = get_qdrant()
     collection = get_qdrant_collection()
     query_vec = embed_text(query)
@@ -240,18 +260,17 @@ def search_user_memories(*, user_id: int, query: str, limit: int = 5) -> List[Di
         FieldCondition(key="source", match=MatchValue(value="memory")),
     ])
     try:
-        results = client.search(
+        results = client.query_points(
             collection_name=collection, 
-            query_vector=query_vec, 
+            query=query_vec, 
             query_filter=qfilter, 
             limit=limit, 
             with_payload=True
-        )
+        ).points
         return [{"id": r.id, "score": r.score, "text": r.payload.get("text", "")} for r in results]
     except Exception: return []
 
 def upsert_memory_point(*, user_id: int, text: str, kind: str = "user_message", point_id: Optional[str] = None) -> Dict[str, Any]:
-    from qdrant_client.models import PointStruct
     client = get_qdrant()
     ensure_collection_exists(client)
     collection = get_qdrant_collection()

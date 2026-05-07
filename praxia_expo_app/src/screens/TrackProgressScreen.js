@@ -75,8 +75,29 @@ export default function TrackProgressScreen({ route, navigation }) {
     setIsGeneratingInsights(false);
   };
 
-  const handleUpdateStatus = (actionIndex) => {
-    // Only kept for fallback or if we want to change status directly, but days will drive it now
+  const handleUpdateStatus = async (actionId, newStatus) => {
+    if (!data) return;
+    
+    let updateData = {};
+    const act = data.actions.find(a => a.id === actionId);
+    if (!act) return;
+
+    if (newStatus === "On Track") {
+      updateData = { status: "On Track", status_color: "success", color_hex: "#10B981" };
+    } else if (newStatus === "Partial") {
+      updateData = { status: "Partial", status_color: "warning", color_hex: "#F59E0B" };
+    } else {
+      updateData = { status: "Not Started", status_color: "error", color_hex: "#EF4444" };
+    }
+
+    // Update Local State
+    setData(prev => {
+      const newActions = prev.actions.map(a => a.id === actionId ? { ...a, ...updateData } : a);
+      return { ...prev, actions: newActions };
+    });
+
+    // Sync to Database
+    await ApiService.updateActionTask(actionId, updateData);
   };
 
   const toggleDay = (actionIndex, dayIndex) => {
@@ -161,11 +182,7 @@ export default function TrackProgressScreen({ route, navigation }) {
   };
 
   const ActionCard = ({ id, icon, title, subtext, statusText, statusColor, color, isLast = false, showSchedule = false }) => (
-    <TouchableOpacity 
-      style={[styles.actionRow, isLast && { borderBottomWidth: 0 }]}
-      onPress={() => showSchedule ? null : handleUpdateStatus(id)}
-      activeOpacity={showSchedule ? 1 : 0.7}
-    >
+    <View style={[styles.actionRow, isLast && { borderBottomWidth: 0 }]}>
       <View style={styles.actionHeader}>
         <View style={styles.actionLeft}>
           <View style={[styles.iconBox, { backgroundColor: `${color}15` }]}>
@@ -176,29 +193,50 @@ export default function TrackProgressScreen({ route, navigation }) {
             <Text style={styles.actionSubtext}>{subtext}</Text>
           </View>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: `${statusColor}15` }]}>
-          <Text style={[styles.statusText, { color: statusColor }]}>{statusText}</Text>
-        </View>
-        <Feather name="chevron-right" size={20} color="#CBD5E1" />
       </View>
       
       {!showSchedule ? (
-        <View style={styles.daysRow}>
-          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, dayIdx) => {
-             const isCompleted = actionDaysCompleted[id] ? actionDaysCompleted[id][dayIdx] : false;
-             return (
-               <TouchableOpacity 
-                 key={dayIdx} 
-                 onPress={() => toggleDay(id, dayIdx)}
-                 style={[
-                   styles.dayCircle, 
-                   isCompleted ? { backgroundColor: color, borderColor: color } : {}
-                 ]}
-               >
-                 <Text style={[styles.dayText, isCompleted ? { color: 'white' } : {}]}>{day}</Text>
-               </TouchableOpacity>
-             );
-          })}
+        <View style={styles.actionControls}>
+          <View style={styles.statusButtonsContainer}>
+            <TouchableOpacity 
+              onPress={() => handleUpdateStatus(id, "Not Started")}
+              style={[styles.miniStatusButton, statusText === "Not Started" && { backgroundColor: '#FEE2E2', borderColor: '#EF4444' }]}
+            >
+              <Text style={[styles.miniStatusText, statusText === "Not Started" && { color: '#EF4444' }]}>Not Started</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              onPress={() => handleUpdateStatus(id, "Partial")}
+              style={[styles.miniStatusButton, statusText === "Partial" && { backgroundColor: '#FFEDD5', borderColor: '#F59E0B' }]}
+            >
+              <Text style={[styles.miniStatusText, statusText === "Partial" && { color: '#F59E0B' }]}>Partial</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              onPress={() => handleUpdateStatus(id, "On Track")}
+              style={[styles.miniStatusButton, statusText === "On Track" && { backgroundColor: '#DCFCE7', borderColor: '#10B981' }]}
+            >
+              <Text style={[styles.miniStatusText, statusText === "On Track" && { color: '#10B981' }]}>On Track</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.daysRow}>
+            {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, dayIdx) => {
+               const isCompleted = actionDaysCompleted[id] ? actionDaysCompleted[id][dayIdx] : false;
+               return (
+                 <TouchableOpacity 
+                   key={dayIdx} 
+                   onPress={() => toggleDay(id, dayIdx)}
+                   style={[
+                     styles.dayCircle, 
+                     isCompleted ? { backgroundColor: color, borderColor: color } : {}
+                   ]}
+                 >
+                   <Text style={[styles.dayText, isCompleted ? { color: 'white' } : {}]}>{day}</Text>
+                 </TouchableOpacity>
+               );
+            })}
+          </View>
         </View>
       ) : (
         <TouchableOpacity style={styles.scheduleButton}>
@@ -206,7 +244,7 @@ export default function TrackProgressScreen({ route, navigation }) {
           <Text style={styles.scheduleButtonText}>Schedule Now</Text>
         </TouchableOpacity>
       )}
-    </TouchableOpacity>
+    </View>
   );
 
   return (
@@ -366,7 +404,19 @@ export default function TrackProgressScreen({ route, navigation }) {
             {/* Section 4: Outcome Projection */}
             <TouchableOpacity 
               style={styles.card}
-              onPress={() => navigation.navigate('OutcomeSimulation', { projection: dynamicInsights?.projection || data.projection })}
+              onPress={() => {
+                const finalProjection = (dynamicInsights?.projection?.biomarkers?.length > 0) 
+                  ? dynamicInsights.projection 
+                  : data.projection;
+                const finalSignals = (dynamicInsights?.signals?.length > 0)
+                  ? dynamicInsights.signals
+                  : (data.signals || []);
+                  
+                navigation.navigate('OutcomeSimulation', { 
+                  projection: finalProjection,
+                  signals: finalSignals
+                });
+              }}
             >
               <View style={styles.cardHeaderLeft}>
                 <Ionicons name="bullseye" size={20} color="#3B82F6" />
@@ -644,6 +694,28 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#64748B',
     marginTop: 2,
+  },
+  actionControls: {
+    marginTop: 12,
+    marginLeft: 52,
+  },
+  statusButtonsContainer: {
+    flexDirection: 'row',
+    marginBottom: 12,
+  },
+  miniStatusButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginRight: 8,
+    backgroundColor: '#F8FAFC',
+  },
+  miniStatusText: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#64748B',
   },
   statusBadge: {
     paddingHorizontal: 8,

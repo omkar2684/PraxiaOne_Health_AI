@@ -20,6 +20,22 @@ export default function LabResultsScreen({ navigation }) {
     { name: 'Vitamin D', value: '22 ng/mL', status: 'Low', color: '#F59E0B' },
   ]);
 
+  React.useEffect(() => {
+    const fetchLatest = async () => {
+      const data = await ApiService.getLatestBiomarkersAndInsights();
+      if (data && data.latest_biomarkers && data.latest_biomarkers.length > 0) {
+        const mapped = data.latest_biomarkers.map(b => ({
+          name: b.name,
+          value: `${b.value} ${b.unit || ''}`.trim(),
+          status: b.status,
+          color: b.status === 'High' ? '#EF4444' : b.status === 'Low' ? '#F59E0B' : '#10B981'
+        }));
+        setResults(mapped);
+      }
+    };
+    fetchLatest();
+  }, []);
+
   const handleUpload = async () => {
     try {
       const docRes = await DocumentPicker.getDocumentAsync({ type: 'application/pdf' });

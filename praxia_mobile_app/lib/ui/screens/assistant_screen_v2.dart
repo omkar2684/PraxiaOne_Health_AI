@@ -74,7 +74,7 @@ class _AssistantScreenV2State extends State<AssistantScreenV2> {
       final uploadRes = await ApiService.uploadDocument(
         fileToSend.path!, 
         fileToSend.name, 
-        fileToSend.extension == 'pdf' ? 'Report' : 'Lab Result'
+        fileToSend.extension == 'pdf' ? 'care_plan' : 'lab_result'
       );
       if (uploadRes.containsKey('id')) {
         attachedDocId = uploadRes['id'];
