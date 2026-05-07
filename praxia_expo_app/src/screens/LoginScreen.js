@@ -7,8 +7,8 @@ import { AppColors } from '../constants/theme';
 import { ApiService } from '../services/apiService';
 
 export default function LoginScreen({ navigation }) {
-  const [username, setUsername] = useState('ravi9');
-  const [password, setPassword] = useState('password123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 

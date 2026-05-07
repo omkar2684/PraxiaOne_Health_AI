@@ -195,8 +195,8 @@ class DocumentsView(APIView):
         ser.is_valid(raise_exception=True)
         doc = ser.save(user=request.user)
         try:
-            ingest_uploaded_document(user_id=request.user.id, doc_id=doc.id, doc_type=doc.doc_type, title=doc.title, file_path=doc.file.path)
-            doc.processing_status = "completed"; doc.save()
+            from .tasks import async_ingest_uploaded_document
+            async_ingest_uploaded_document.delay(user_id=request.user.id, doc_id=doc.id, doc_type=doc.doc_type, title=doc.title, file_path=doc.file.path)
             return Response(ser.data, status=201)
         except Exception:
             doc.processing_status = "failed"; doc.save()

@@ -18,6 +18,7 @@ export default function RegistrationScreen({ navigation }) {
     allergies: ''
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [showGenderModal, setShowGenderModal] = useState(false);
 
   const handleRegister = async () => {
     if (!form.username || !form.password || !form.fullName) {
@@ -63,10 +64,13 @@ export default function RegistrationScreen({ navigation }) {
 
               <View style={styles.row}>
                 <TextInput style={[styles.input, {flex: 1, marginRight: 10}]} placeholder="Age" placeholderTextColor="#9ca3af" keyboardType="numeric" value={form.age} onChangeText={(t) => updateForm('age', t)} />
-                <View style={[styles.input, {flex: 1, justifyContent: 'center'}]}>
+                <TouchableOpacity 
+                  style={[styles.input, {flex: 1, justifyContent: 'center'}]}
+                  onPress={() => setShowGenderModal(true)}
+                >
                   <Text style={{fontSize: 12, color: 'gray', position: 'absolute', top: -8, left: 10, backgroundColor: 'white', paddingHorizontal: 4}}>Gender</Text>
                   <Text style={{color: AppColors.accent, fontWeight: 'bold'}}>{form.gender}  ▼</Text>
-                </View>
+                </TouchableOpacity>
               </View>
 
               <TextInput style={styles.input} placeholder="Allergies (if any)" placeholderTextColor="#9ca3af" value={form.allergies} onChangeText={(t) => updateForm('allergies', t)} />
@@ -101,6 +105,31 @@ export default function RegistrationScreen({ navigation }) {
 
             </View>
           </ScrollView>
+
+          {showGenderModal && (
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Select Gender</Text>
+                {['Male', 'Female', 'Other'].map(option => (
+                  <TouchableOpacity 
+                    key={option} 
+                    style={styles.modalOption}
+                    onPress={() => {
+                      updateForm('gender', option);
+                      setShowGenderModal(false);
+                    }}
+                  >
+                    <Text style={styles.modalOptionText}>{option}</Text>
+                  </TouchableOpacity>
+                ))}
+                <TouchableOpacity style={styles.modalCancel} onPress={() => setShowGenderModal(false)}>
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+
         </SafeAreaView>
       </LinearGradient>
     </KeyboardAvoidingView>
@@ -159,5 +188,31 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
     marginBottom: 12,
   },
-  socialBtnText: { color: AppColors.text, fontWeight: 'bold', fontSize: 15 }
+  socialBtnText: { color: AppColors.text, fontWeight: 'bold', fontSize: 15 },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0, bottom: 0, left: 0, right: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 20,
+    width: '80%',
+    alignItems: 'center'
+  },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15, color: AppColors.accent },
+  modalOption: {
+    width: '100%',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    alignItems: 'center'
+  },
+  modalOptionText: { fontSize: 16, color: AppColors.text },
+  modalCancel: { marginTop: 15, paddingVertical: 10 },
+  modalCancelText: { color: 'red', fontWeight: 'bold', fontSize: 16 }
 });

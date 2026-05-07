@@ -44,12 +44,15 @@ services:
   # 2. BACKEND LAYER (Django API + RAG Engine)
   # ----------------------------------------------------
   backend:
+    image: praxia_backend:latest
     build: 
       context: ./backend
       dockerfile: Dockerfile
     restart: always
     ports:
-      - "8010:8000"
+      - "8000:8000"
+    volumes:
+      - ./ai:/ai
     depends_on:
       db:
         condition: service_healthy
@@ -72,11 +75,13 @@ services:
       sh -c "python manage.py migrate && python seed_sample_data.py || true && gunicorn praxiaone.wsgi:application --bind 0.0.0.0:8000 --timeout 300"
 
   celery_worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: praxia_backend:latest
     restart: always
+    volumes:
+      - ./ai:/ai
     depends_on:
+      backend:
+        condition: service_started
       db:
         condition: service_healthy
       redis:
@@ -89,6 +94,8 @@ services:
       - MYSQL_PASSWORD=StrongPass@123
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0
+      - QDRANT_URL=http://qdrant:6333
+      - OLLAMA_URL=http://host.docker.internal:11434
     command: >
       sh -c "celery -A praxiaone worker --loglevel=info"
 
