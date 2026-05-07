@@ -407,15 +407,19 @@ export default function TrackProgressScreen({ route, navigation }) {
             <TouchableOpacity 
               style={styles.card}
               onPress={() => {
-                const finalProjection = (dynamicInsights?.projection?.biomarkers?.length > 0) 
-                  ? dynamicInsights.projection 
-                  : data.projection;
+                const finalProjections = (dynamicInsights?.projections) 
+                  ? dynamicInsights.projections 
+                  : data.projections;
+                const finalCausality = (dynamicInsights?.causality_analysis)
+                  ? dynamicInsights.causality_analysis
+                  : data.causality_analysis;
                 const finalSignals = (dynamicInsights?.signals?.length > 0)
                   ? dynamicInsights.signals
                   : (data.signals || []);
                   
                 navigation.navigate('OutcomeSimulation', { 
-                  projection: finalProjection,
+                  projections: finalProjections,
+                  causality_analysis: finalCausality,
                   signals: finalSignals
                 });
               }}
@@ -438,14 +442,14 @@ export default function TrackProgressScreen({ route, navigation }) {
                   ) : (
                     <>
                       <Text style={styles.projectionText}>
-                        {(dynamicInsights?.projection?.text || data.projection?.text || '').split(/glucose levels/i).map((part, idx, arr) => (
+                        {(dynamicInsights?.projections?.two_weeks?.text || data.projections?.two_weeks?.text || '').split(/glucose levels/i).map((part, idx, arr) => (
                           <React.Fragment key={idx}>
                             {part}
                             {idx < arr.length - 1 && <Text style={{ color: '#10B981', fontWeight: 'bold' }}>glucose levels</Text>}
                           </React.Fragment>
                         ))}
                       </Text>
-                      <Text style={styles.projectionSubtext}>{dynamicInsights?.projection?.subtext || data.projection?.subtext}</Text>
+                      <Text style={styles.projectionSubtext}>{dynamicInsights?.projections?.two_weeks?.subtext || data.projections?.two_weeks?.subtext}</Text>
                     </>
                   )}
                 </View>
@@ -455,28 +459,6 @@ export default function TrackProgressScreen({ route, navigation }) {
               </View>
             </TouchableOpacity>
 
-            {/* Section 5: Re-Test Trigger */}
-            <View style={[styles.card, styles.highlightCard]}>
-              <View style={styles.retestHeader}>
-                <Ionicons name="flask-outline" size={32} color="#2563EB" />
-                <View style={styles.retestTextContainer}>
-                  <Text style={styles.retestTitle}>Next Step: Re-Test</Text>
-                  <Text style={styles.retestDesc}>
-                    {(dynamicInsights?.re_test?.text || data.re_test?.text || '').split(/(\d+ days)/).map((part, idx) => (
-                      part.match(/\d+ days/) 
-                        ? <Text key={idx} style={{ fontWeight: 'bold', color: '#2563EB' }}>{part}</Text>
-                        : part
-                    ))}
-                  </Text>
-                </View>
-              </View>
-              <TouchableOpacity 
-                style={styles.bookButton}
-                onPress={() => navigation.navigate('ReTestTrigger')}
-              >
-                <Text style={styles.bookButtonText}>Book Follow-Up Test</Text>
-              </TouchableOpacity>
-            </View>
           </>
         )}
 

@@ -57,47 +57,10 @@ export default function OutcomeSignalScreen({ route, navigation }) {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.successCard}>
-          <View style={styles.checkCircle}>
-            <MaterialIcons name="check" size={28} color="#059669" />
-          </View>
-          <View style={styles.successTextContainer}>
-            <Text style={styles.successTitle}>You're on track!</Text>
-            <Text style={styles.successSub}>Your actions are driving positive changes.</Text>
-          </View>
-        </View>
+        <Text style={styles.title}>Track Your Progress</Text>
+        <Text style={styles.subtitle}>Upload a follow-up lab report to see how your biomarkers have improved since your last test.</Text>
 
-        <Text style={styles.title}>Improvement So Far</Text>
-        <Text style={styles.subtitle}>(Compared to last week)</Text>
-
-        <View style={styles.signalsContainer}>
-          {route.params?.signals && route.params.signals.length > 0 ? (
-            route.params.signals.map((signal, index) => (
-              <React.Fragment key={index}>
-                <SignalRow 
-                  label={signal.name} 
-                  value={signal.value} 
-                  color={signal.value.includes('+') ? "#059669" : signal.value.includes('-') ? "#2563EB" : "#1E293B"} 
-                />
-                {index < route.params.signals.length - 1 && <View style={styles.divider} />}
-              </React.Fragment>
-            ))
-          ) : (
-            <>
-              <SignalRow label="Activity" value="+22%" color="#059669" />
-              <View style={styles.divider} />
-              <SignalRow label="Sleep" value="+15%" color="#059669" />
-              <View style={styles.divider} />
-              <SignalRow label="Sugar Intake" value="-18%" color="#2563EB" />
-            </>
-          )}
-        </View>
-
-        <View style={{ flex: 1, minHeight: 40 }} />
-
-        <View style={styles.infoBox}>
-          <Text style={styles.infoText}>Great job! Consistency is key.</Text>
-        </View>
+        <View style={{ flex: 1, minHeight: 20 }} />
 
         <TouchableOpacity 
           style={styles.uploadButton}

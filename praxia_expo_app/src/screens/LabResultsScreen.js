@@ -11,6 +11,7 @@ export default function LabResultsScreen({ route, navigation }) {
 
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState('May 6, 2024');
+  const [showAll, setShowAll] = useState(false);
   
   const [results, setResults] = useState([]);
 
@@ -122,8 +123,8 @@ export default function LabResultsScreen({ route, navigation }) {
           ) : (
 
           <View style={styles.card}>
-            {results.map((item, idx) => (
-              <View key={idx} style={[styles.row, idx === results.length - 1 && { borderBottomWidth: 0 }]}>
+            {(showAll ? results : results.slice(0, 5)).map((item, idx) => (
+              <View key={idx} style={[styles.row, idx === (showAll ? results.length : Math.min(results.length, 5)) - 1 && { borderBottomWidth: 0 }]}>
                 <Text style={styles.bioName}>{item.name}</Text>
                 <View style={styles.valBox}>
                   <Text style={styles.bioVal}>{item.value}</Text>
@@ -133,9 +134,13 @@ export default function LabResultsScreen({ route, navigation }) {
                 </View>
               </View>
             ))}
-            <TouchableOpacity style={styles.viewMoreBtn}>
-              <Text style={styles.viewMoreText}>+ {results.length > 5 ? results.length - 5 : 0} more</Text>
-            </TouchableOpacity>
+            {results.length > 5 && (
+              <TouchableOpacity style={styles.viewMoreBtn} onPress={() => setShowAll(!showAll)}>
+                <Text style={styles.viewMoreText}>
+                  {showAll ? 'Show less' : `+ ${results.length - 5} more`}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
           )}
 

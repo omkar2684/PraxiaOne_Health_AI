@@ -1,11 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Platform, StatusBar } from 'react-native';
 import { Feather, MaterialIcons } from '@expo/vector-icons';
 import { AppColors } from '../constants/theme';
 
 export default function OutcomeSimulationScreen({ route, navigation }) {
-  const { projection } = route.params || {};
-  const biomarkers = projection?.biomarkers || [];
+  const { projections, causality_analysis } = route.params || {};
+  const [timeframe, setTimeframe] = useState('two_weeks');
+
+  const currentProjection = projections ? projections[timeframe] : null;
+  const biomarkers = currentProjection?.biomarkers || [];
 
   return (
     <SafeAreaView style={styles.container}>
@@ -19,7 +22,23 @@ export default function OutcomeSimulationScreen({ route, navigation }) {
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.title}>If you stay on track</Text>
-        <Text style={styles.subtitle}>Projected Improvement by Next Test (in ~18 days)</Text>
+        
+        <View style={styles.toggleContainer}>
+          <TouchableOpacity 
+            style={[styles.toggleBtn, timeframe === 'two_weeks' && styles.toggleBtnActive]}
+            onPress={() => setTimeframe('two_weeks')}
+          >
+            <Text style={[styles.toggleText, timeframe === 'two_weeks' && styles.toggleTextActive]}>2 Weeks</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.toggleBtn, timeframe === 'one_month' && styles.toggleBtnActive]}
+            onPress={() => setTimeframe('one_month')}
+          >
+            <Text style={[styles.toggleText, timeframe === 'one_month' && styles.toggleTextActive]}>1 Month</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.subtitle}>Projected Improvement</Text>
 
         <View style={styles.cardsContainer}>
           {biomarkers.length > 0 ? (
@@ -54,14 +73,14 @@ export default function OutcomeSimulationScreen({ route, navigation }) {
 
         <View style={styles.infoBox}>
           <Text style={styles.infoText}>
-            {projection?.text || projection?.subtext || 'Projections are personalized estimates based on your current data, plan and adherence.'}
+            {currentProjection?.text || 'Projections are personalized estimates based on your current data, plan and adherence.'}
           </Text>
         </View>
 
-        {projection?.causality_analysis && projection.causality_analysis.length > 0 && (
+        {causality_analysis && causality_analysis.length > 0 && (
           <View style={styles.causalitySection}>
-            <Text style={styles.causalityTitle}>Causality Analysis: What's Working Best?</Text>
-            {projection.causality_analysis.map((item, index) => (
+            <Text style={styles.causalityTitle}>Impact Per Activity</Text>
+            {causality_analysis.map((item, index) => (
               <View key={index} style={styles.causalityCard}>
                 <View style={styles.causalityRank}>
                   <Text style={styles.causalityRankText}>#{item.rank || index + 1}</Text>
@@ -93,7 +112,12 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 18, fontWeight: '700', color: AppColors.text },
   scrollContent: { padding: 20 },
   title: { fontSize: 24, fontWeight: '900', color: '#1E293B' },
-  subtitle: { fontSize: 14, color: '#64748B', marginTop: 8, marginBottom: 24 },
+  toggleContainer: { flexDirection: 'row', backgroundColor: '#F1F5F9', borderRadius: 20, padding: 4, marginVertical: 16 },
+  toggleBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 16 },
+  toggleBtnActive: { backgroundColor: '#FFF', shadowColor: '#000', shadowOffset: {width: 0, height: 1}, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 },
+  toggleText: { fontSize: 14, fontWeight: '600', color: '#64748B' },
+  toggleTextActive: { color: '#1E3A8A' },
+  subtitle: { fontSize: 14, color: '#64748B', marginTop: 8, marginBottom: 16 },
   cardsContainer: { marginBottom: 24 },
   card: { backgroundColor: '#FFF', borderRadius: 16, padding: 16, marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },

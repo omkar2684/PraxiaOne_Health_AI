@@ -168,6 +168,18 @@ export default function ConnectDataScreen({ navigation }) {
                 <Text style={styles.deviceName}>Dexcom G7 CGM</Text>
                 <Text style={{color: '#10B981', fontSize: 12, fontWeight: 'bold'}}>Connect</Text>
               </TouchableOpacity>
+
+              <TouchableOpacity style={styles.deviceItem} onPress={() => Alert.alert('Notice', 'This device is not supported for health data sync.')}>
+                <MaterialIcons name="headphones" size={20} color="#64748B" />
+                <Text style={[styles.deviceName, {color: '#64748B'}]}>AirPods Pro</Text>
+                <Text style={{color: 'gray', fontSize: 12}}>Unsupported</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.deviceItem} onPress={() => Alert.alert('Notice', 'This device is not supported for health data sync.')}>
+                <MaterialIcons name="tv" size={20} color="#64748B" />
+                <Text style={[styles.deviceName, {color: '#64748B'}]}>Living Room TV</Text>
+                <Text style={{color: 'gray', fontSize: 12}}>Unsupported</Text>
+              </TouchableOpacity>
             </View>
           )}
 

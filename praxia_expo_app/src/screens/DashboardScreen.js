@@ -26,9 +26,22 @@ export default function DashboardScreen({ navigation }) {
       const v = await ApiService.getVitals();
       const hs = await ApiService.getHealthScore();
       const recs = await ApiService.getRecommendations();
+      const labs = await ApiService.getLatestLabResults();
       
       setVitals(v);
       setHealthScore(hs.score || 0);
+
+      // Extract Glucose from labs if available
+      if (labs && labs.length > 0) {
+        const labGlucose = labs.find(l => l.name.toLowerCase().includes('glucose'));
+        if (labGlucose) {
+          setVitals(prev => ({
+            ...prev,
+            lab_glucose: labGlucose.value,
+            lab_glucose_status: labGlucose.status
+          }));
+        }
+      }
 
       const now = new Date();
       let hours = now.getHours();
@@ -103,20 +116,36 @@ export default function DashboardScreen({ navigation }) {
               <Text style={styles.sectionTitle}>Key Factors</Text>
               
               <View style={styles.factorsCard}>
-                <View style={styles.factorRow}>
-                  <View style={[styles.factorIcon, {borderColor: '#F59E0B'}]} />
-                  <Text style={styles.factorLabel}>Glucose</Text>
-                  <View style={{flex: 1}} />
-                  <Text style={styles.factorValue}>{vitals.glucose} mg/dL</Text>
-                  <View style={[styles.statusDot, {backgroundColor: '#F59E0B'}]} />
-                  <MaterialIcons name="chevron-right" size={20} color="#CBD5E1" />
-                </View>
-                <View style={styles.divider} />
+                {vitals.lab_glucose ? (
+                  <>
+                    <View style={styles.factorRow}>
+                      <View style={[styles.factorIcon, {borderColor: vitals.lab_glucose_status === 'High' ? '#EF4444' : '#10B981'}]} />
+                      <Text style={styles.factorLabel}>Glucose (Lab)</Text>
+                      <View style={{flex: 1}} />
+                      <Text style={styles.factorValue}>{vitals.lab_glucose}</Text>
+                      <View style={[styles.statusDot, {backgroundColor: vitals.lab_glucose_status === 'High' ? '#EF4444' : '#10B981'}]} />
+                      <MaterialIcons name="chevron-right" size={20} color="#CBD5E1" />
+                    </View>
+                    <View style={styles.divider} />
+                  </>
+                ) : (
+                  <>
+                    <View style={styles.factorRow}>
+                      <MaterialIcons name="favorite" size={20} color="#EF4444" />
+                      <Text style={[styles.factorLabel, {marginLeft: 10}]}>Heart Rate</Text>
+                      <View style={{flex: 1}} />
+                      <Text style={styles.factorValue}>72 bpm</Text>
+                      <MaterialIcons name="favorite-border" size={16} color="#EF4444" style={{marginLeft: 8}} />
+                      <MaterialIcons name="chevron-right" size={20} color="#CBD5E1" />
+                    </View>
+                    <View style={styles.divider} />
+                  </>
+                )}
                 <View style={styles.factorRow}>
                   <MaterialIcons name="directions-run" size={20} color={AppColors.primary} />
                   <Text style={[styles.factorLabel, {marginLeft: 10}]}>Activity</Text>
                   <View style={{flex: 1}} />
-                  <Text style={styles.factorValue}>{vitals.steps} / 100</Text>
+                  <Text style={styles.factorValue}>{vitals.steps} steps</Text>
                   <MaterialIcons name="arrow-upward" size={16} color={AppColors.primary} style={{marginLeft: 8}} />
                   <MaterialIcons name="chevron-right" size={20} color="#CBD5E1" />
                 </View>

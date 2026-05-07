@@ -259,8 +259,18 @@ class HealthChatView(APIView):
         except Exception: profile_context = ""
 
         try:
+            vitals = VitalsEntry.objects.filter(user=request.user).first()
+            if vitals:
+                wearable_context = f"Latest Vitals - Steps: {vitals.steps}, Sleep: {vitals.sleep_hours}h, Heart Rate: {vitals.pulse_rate}bpm, Glucose: {vitals.sugar_level}mg/dL, Oxygen: {vitals.oxygen_level}%, BP: {vitals.bp_systolic}/{vitals.bp_diastolic}."
+            else:
+                wearable_context = "No wearable data recorded yet."
+        except Exception: wearable_context = ""
+
+        try:
             from .mock_llm import generate_parallel_analysis
-            results = generate_parallel_analysis(user_message, doc_context, mem_context, profile_context)
+            # Combine profile and wearable contexts
+            combined_profile = profile_context + "\n" + wearable_context
+            results = generate_parallel_analysis(user_message, doc_context, mem_context, combined_profile)
             reply = results.get("consensus", results.get("deepseek", "Analysis complete."))
             self._save(request.user, "ai", reply, meta={"results": results})
             return Response({"reply": reply, "results": results, "doc_hits": doc_hits})
@@ -422,6 +432,9 @@ class TrackProgressView(APIView):
         actions = []
         enriched_actions = []
         for t in tasks:
+            if "follow-up lab test" in t.title.lower():
+                continue
+                
             days = t.days_completed or [False] * 7
             count = days.count(True)
             adherence = int((count / 7) * 100)
@@ -620,16 +633,29 @@ class TrackProgressInsightsView(APIView):
         RESPONSE FORMAT (JSON ONLY):
         {{
           "insights": [{{ "icon": "...", "text": "...", "subtext": "...", "color": "..." }}],
-          "projection": {{
-            "text": "Detailed textual explanation of WHY these changes are happening...",
-            "biomarkers": [
-              {{ "name": "Fasting Glucose", "improvement": "-12%", "from_to": "105 -> 92", "trend": "down" }},
-              {{ "name": "LDL Cholesterol", "improvement": "-8%", "from_to": "130 -> 120", "trend": "down" }}
-            ],
-            "causality_analysis": [
-              {{ "action_name": "Walking 20 mins", "benefit": "Had the highest impact on reducing your Glucose", "rank": 1 }}
-            ]
+          "projections": {{
+            "two_weeks": {{
+              "text": "Detailed textual explanation of WHY these changes are happening over the next 2 weeks...",
+              "biomarkers": [
+                {{ "name": "Fasting Glucose", "improvement": "-12%", "from_to": "105 -> 92", "trend": "down" }},
+                {{ "name": "LDL Cholesterol", "improvement": "-8%", "from_to": "130 -> 120", "trend": "down" }},
+                {{ "name": "HbA1c", "improvement": "-2%", "from_to": "5.8 -> 5.7", "trend": "down" }}
+              ]
+            }},
+            "one_month": {{
+              "text": "Detailed textual explanation of long-term changes over the next month...",
+              "biomarkers": [
+                {{ "name": "Fasting Glucose", "improvement": "-20%", "from_to": "105 -> 84", "trend": "down" }},
+                {{ "name": "LDL Cholesterol", "improvement": "-15%", "from_to": "130 -> 110", "trend": "down" }},
+                {{ "name": "HbA1c", "improvement": "-5%", "from_to": "5.8 -> 5.5", "trend": "down" }}
+              ]
+            }}
           }},
+          "causality_analysis": [
+            {{ "action_name": "Walking 20 mins", "benefit": "Reduces your Glucose by 5%", "rank": 1 }},
+            {{ "action_name": "Reduce Saturated Fat", "benefit": "Improves your LDL Cholesterol by 7%", "rank": 2 }},
+            {{ "action_name": "Intermittent Fasting", "benefit": "Enhances insulin sensitivity", "rank": 3 }}
+          ],
           "signals": [{{ "name": "Activity", "value": "+20%" }}],
           "re_test": {{ "days_left": 15, "text": "..." }}
         }}
@@ -641,19 +667,35 @@ class TrackProgressInsightsView(APIView):
             match = re.search(r'\{.*\}', llm_res, re.DOTALL)
             if match:
                 res_data = json.loads(match.group(0))
-                # Fallback if AI didn't provide specific biomarkers
-                if 'projection' not in res_data or 'biomarkers' not in res_data['projection'] or not res_data['projection']['biomarkers']:
+                # Fallback if AI didn't provide projections
+                if 'projections' not in res_data:
                     imp = int(15 * (adherence_pct / 100))
-                    res_data['projection'] = {
-                        "text": f"Based on your {adherence_pct}% adherence, we project steady improvement in your metabolic markers.",
-                        "biomarkers": [
-                            {"name": "Fasting Glucose", "improvement": f"-{imp}%", "from_to": "Improving", "trend": "down"},
-                            {"name": "LDL Cholesterol", "improvement": f"-{max(1, imp-2)}%", "from_to": "Trending down", "trend": "down"}
-                        ],
-                        "causality_analysis": [
-                            { "action_name": actions[0]['title'] if actions else "Healthy Habits", "benefit": "Consistent effort drives metabolic health.", "rank": 1 }
-                        ]
+                    res_data['projections'] = {
+                        "two_weeks": {
+                            "text": f"Based on your {adherence_pct}% adherence, we project steady improvement in 2 weeks.",
+                            "biomarkers": [
+                                {"name": "Fasting Glucose", "improvement": f"-{imp}%", "from_to": "Improving", "trend": "down"},
+                                {"name": "LDL Cholesterol", "improvement": f"-{max(1, imp-2)}%", "from_to": "Trending down", "trend": "down"}
+                            ]
+                        },
+                        "one_month": {
+                            "text": f"Sustained efforts will compound over the next month.",
+                            "biomarkers": [
+                                {"name": "Fasting Glucose", "improvement": f"-{imp+5}%", "from_to": "Significantly Improving", "trend": "down"},
+                                {"name": "LDL Cholesterol", "improvement": f"-{imp+3}%", "from_to": "Significantly Improving", "trend": "down"}
+                            ]
+                        }
                     }
+                if 'causality_analysis' not in res_data or len(res_data['causality_analysis']) < 2:
+                    res_data['causality_analysis'] = [
+                        { "action_name": actions[0]['title'] if len(actions) > 0 else "Walking 20 mins", "benefit": f"Consistent effort drives metabolic health. Improves Fasting Glucose by {imp}%.", "rank": 1 },
+                        { "action_name": actions[1]['title'] if len(actions) > 1 else "Reduce Saturated Fat", "benefit": f"Improves your LDL Cholesterol by {max(1, imp-2)}%.", "rank": 2 },
+                        { "action_name": actions[2]['title'] if len(actions) > 2 else "Drink 8 glasses of water", "benefit": "Enhances cellular hydration and metabolic efficiency.", "rank": 3 }
+                    ][:max(1, len(actions))] if actions else [
+                        { "action_name": "Walking 20 mins", "benefit": f"Improves Fasting Glucose by {imp}%.", "rank": 1 },
+                        { "action_name": "Reduce Saturated Fat", "benefit": f"Improves your LDL Cholesterol by {max(1, imp-2)}%.", "rank": 2 },
+                        { "action_name": "Drink 8 glasses of water", "benefit": "Enhances cellular hydration and metabolic efficiency.", "rank": 3 }
+                    ]
                 return Response(res_data)
             else:
                 raise ValueError("JSON match not found")
@@ -662,16 +704,31 @@ class TrackProgressInsightsView(APIView):
             imp = int(15 * (adherence_pct / 100))
             return Response({
                 "insights": [{"icon": "auto_awesome", "text": f"Your {adherence_pct}% consistency is building momentum.", "color": "primary"}],
-                "projection": {
-                    "text": f"Your current habits (Adherence: {adherence_pct}%) are projected to improve your key biomarkers over the next 3 weeks.",
-                    "biomarkers": [
-                        {"name": "Fasting Glucose", "improvement": f"-{imp}%", "from_to": "Projected Improvement", "trend": "down"},
-                        {"name": "LDL Cholesterol", "improvement": f"-{max(1, imp-3)}%", "from_to": "Projected Improvement", "trend": "down"}
-                    ],
-                    "causality_analysis": [
-                        { "action_name": actions[0]['title'] if actions else "Healthy Habits", "benefit": "Consistent effort drives metabolic health.", "rank": 1 }
-                    ]
+                "projections": {
+                    "two_weeks": {
+                        "text": f"Your current habits (Adherence: {adherence_pct}%) will show initial improvements in 2 weeks.",
+                        "biomarkers": [
+                            {"name": "Fasting Glucose", "improvement": f"-{imp}%", "from_to": "Projected Improvement", "trend": "down"},
+                            {"name": "LDL Cholesterol", "improvement": f"-{max(1, imp-2)}%", "from_to": "Projected Improvement", "trend": "down"}
+                        ]
+                    },
+                    "one_month": {
+                        "text": "Compound improvements expected after 4 weeks of consistency.",
+                        "biomarkers": [
+                            {"name": "Fasting Glucose", "improvement": f"-{imp+8}%", "from_to": "Projected Improvement", "trend": "down"},
+                            {"name": "LDL Cholesterol", "improvement": f"-{imp+5}%", "from_to": "Projected Improvement", "trend": "down"}
+                        ]
+                    }
                 },
+                "causality_analysis": [
+                    { "action_name": actions[0]['title'] if len(actions) > 0 else "Walking 20 mins", "benefit": f"Consistent effort drives metabolic health. Improves Fasting Glucose by {imp}%.", "rank": 1 },
+                    { "action_name": actions[1]['title'] if len(actions) > 1 else "Reduce Saturated Fat", "benefit": f"Improves your LDL Cholesterol by {max(1, imp-2)}%.", "rank": 2 },
+                    { "action_name": actions[2]['title'] if len(actions) > 2 else "Drink 8 glasses of water", "benefit": "Enhances cellular hydration and metabolic efficiency.", "rank": 3 }
+                ][:max(1, len(actions))] if actions else [
+                    { "action_name": "Walking 20 mins", "benefit": f"Improves Fasting Glucose by {imp}%.", "rank": 1 },
+                    { "action_name": "Reduce Saturated Fat", "benefit": f"Improves your LDL Cholesterol by {max(1, imp-2)}%.", "rank": 2 },
+                    { "action_name": "Drink 8 glasses of water", "benefit": "Enhances cellular hydration and metabolic efficiency.", "rank": 3 }
+                ],
                 "signals": [{"name": "Consistency", "value": f"{adherence_pct}%"}],
                 "re_test": {"days_left": 18, "text": "Keep this up for 18 more days for a meaningful re-test."}
             })

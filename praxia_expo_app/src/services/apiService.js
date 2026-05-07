@@ -113,8 +113,7 @@ export const ApiService = {
           {"id": 1, "icon": "directions_walk", "title": "Walk 20 minutes daily", "subtext": "4 of 5 days completed", "status": "On Track", "status_color": "success", "color_hex": "#10B981"},
           {"id": 2, "icon": "cake", "title": "Reduce sugar intake", "subtext": "Improved, but above target", "status": "Partial", "status_color": "warning", "color_hex": "#F59E0B"},
           {"id": 3, "icon": "water_drop", "title": "Drink 8 glasses of water", "subtext": "3 of 5 days completed", "status": "Partial", "status_color": "warning", "color_hex": "#3B82F6"},
-          {"id": 4, "icon": "fitness_center", "title": "Strength training 2x per week", "subtext": "Completed 2 of 2 this week", "status": "On Track", "status_color": "success", "color_hex": "#8B5CF6"},
-          {"id": 5, "icon": "event", "title": "Schedule follow-up lab test", "subtext": "Not started", "status": "Not Started", "status_color": "error", "color_hex": "#EF4444", "is_actionable": true}
+          {"id": 4, "icon": "fitness_center", "title": "Strength training 2x per week", "subtext": "Completed 2 of 2 this week", "status": "On Track", "status_color": "success", "color_hex": "#8B5CF6"}
       ],
       "insights": [
           {"icon": "trending_up", "text": "Your activity level increased by 22% this week", "color": "success"},
