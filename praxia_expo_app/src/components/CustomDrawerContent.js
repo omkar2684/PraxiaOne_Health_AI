@@ -1,11 +1,22 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { DrawerContentScrollView } from '@react-navigation/drawer';
 import { FontAwesome5, MaterialIcons } from '@expo/vector-icons';
 import { AppColors } from '../constants/theme';
 import { ApiService } from '../services/apiService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function CustomDrawerContent(props) {
+  const [username, setUsername] = useState('User');
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const stored = await AsyncStorage.getItem('username');
+      if (stored) setUsername(stored);
+    };
+    fetchUser();
+  }, []);
+
   const handleLogout = async () => {
     await ApiService.logout();
     props.navigation.replace('Login');
@@ -25,11 +36,11 @@ export default function CustomDrawerContent(props) {
     <View style={{ flex: 1, backgroundColor: '#F2F4F7' }}>
       <View style={styles.header}>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>R</Text>
+          <Text style={styles.avatarText}>{username.charAt(0).toUpperCase()}</Text>
         </View>
         <View style={{ marginLeft: 16 }}>
-          <Text style={styles.username}>Ravi9</Text>
-          <Text style={styles.email}>ravi9@praxiaone.com</Text>
+          <Text style={styles.username}>{username}</Text>
+          <Text style={styles.email}>Active Session</Text>
         </View>
       </View>
 

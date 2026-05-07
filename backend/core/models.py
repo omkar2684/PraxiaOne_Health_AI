@@ -209,3 +209,36 @@ class PaymentProfile(models.Model):
     insurance_provider = models.CharField(max_length=100, blank=True, null=True)
     policy_number = models.CharField(max_length=100, blank=True, null=True)
     last_four_digits = models.CharField(max_length=4, blank=True, null=True)
+
+class ActionTask(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="action_tasks")
+    title = models.CharField(max_length=255)
+    subtext = models.CharField(max_length=255, blank=True, default="")
+    icon = models.CharField(max_length=50, default="directions_walk")
+    status = models.CharField(max_length=20, default="Not Started")
+    status_color = models.CharField(max_length=20, default="error")
+    color_hex = models.CharField(max_length=10, default="#EF4444")
+    
+    # Store 7 days as a JSON list of booleans [False, False, ...]
+    days_completed = models.JSONField(default=list) 
+    
+    is_ai_generated = models.BooleanField(default=False)
+    is_actionable = models.BooleanField(default=False) # e.g. "Schedule Lab"
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user} - {self.title} ({self.status})"
+
+class BiomarkerData(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="biomarkers")
+    document = models.ForeignKey(UploadedDocument, on_delete=models.CASCADE, null=True, blank=True)
+    name = models.CharField(max_length=100)
+    value = models.CharField(max_length=100)
+    status = models.CharField(max_length=50) # Normal, High, Low
+    unit = models.CharField(max_length=50, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user} - {self.name}: {self.value} ({self.status})"

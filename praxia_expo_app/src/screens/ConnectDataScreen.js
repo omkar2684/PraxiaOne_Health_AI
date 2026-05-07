@@ -12,6 +12,8 @@ export default function ConnectDataScreen({ navigation }) {
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [isStable, setIsStable] = useState(false);
   const [riskFactors, setRiskFactors] = useState(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [showDevices, setShowDevices] = useState(false);
 
   const handleUpload = async (docType) => {
     try {
@@ -120,7 +122,56 @@ export default function ConnectDataScreen({ navigation }) {
         <View style={styles.timelineCont}>
           <View style={styles.timelineLine} />
           
-          <Text style={styles.sectionLabel}>DOCUMENT UPLOADS</Text>
+          <Text style={styles.sectionLabel}>WEARABLES & DEVICES</Text>
+          
+          <View style={styles.card}>
+            <View style={styles.iconBox}>
+              <MaterialIcons name="watch" size={28} color="#10B981" />
+            </View>
+            <View style={{flex: 1, marginLeft: 10}}>
+              <Text style={styles.cardTitle}>Scan for Devices</Text>
+              {isScanning && <Text style={{fontSize: 12, color: 'gray', marginTop: 4}}>Scanning Bluetooth...</Text>}
+            </View>
+            <TouchableOpacity 
+              style={[styles.uploadBtn, {backgroundColor: '#10B981'}]} 
+              onPress={() => {
+                setIsScanning(true);
+                setShowDevices(false);
+                setTimeout(() => {
+                  setIsScanning(false);
+                  setShowDevices(true);
+                }, 1500);
+              }}
+            >
+              <Text style={styles.uploadBtnText}>{isScanning ? 'Scanning...' : 'Scan'}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {showDevices && (
+            <View style={styles.devicesDropdown}>
+              <Text style={{fontSize: 12, fontWeight: 'bold', color: 'gray', marginBottom: 10}}>DEVICES FOUND</Text>
+              
+              <TouchableOpacity style={styles.deviceItem} onPress={() => Alert.alert('Success', 'Apple Watch connected!')}>
+                <MaterialIcons name="watch" size={20} color="#1D3B5A" />
+                <Text style={styles.deviceName}>Apple Watch Series 9</Text>
+                <Text style={{color: '#10B981', fontSize: 12, fontWeight: 'bold'}}>Connect</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.deviceItem} onPress={() => Alert.alert('Success', 'Oura Ring connected!')}>
+                <MaterialIcons name="radio-button-unchecked" size={20} color="#1D3B5A" />
+                <Text style={styles.deviceName}>Oura Ring Gen3</Text>
+                <Text style={{color: '#10B981', fontSize: 12, fontWeight: 'bold'}}>Connect</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.deviceItem} onPress={() => Alert.alert('Success', 'Dexcom connected!')}>
+                <MaterialIcons name="sensors" size={20} color="#1D3B5A" />
+                <Text style={styles.deviceName}>Dexcom G7 CGM</Text>
+                <Text style={{color: '#10B981', fontSize: 12, fontWeight: 'bold'}}>Connect</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <Text style={[styles.sectionLabel, {marginTop: 20}]}>DOCUMENT UPLOADS</Text>
 
           <View style={styles.card}>
             <View style={styles.iconBox}>
@@ -261,5 +312,8 @@ const styles = StyleSheet.create({
   warningMsg: { fontWeight: 'bold', fontSize: 14, marginBottom: 16 },
   explanationBox: { marginTop: 8 },
   explanationTitle: { fontSize: 14, fontWeight: 'bold', color: '#2E7D5E', marginBottom: 8 },
-  explanationText: { color: '#333', fontSize: 13, lineHeight: 20 }
+  explanationText: { color: '#333', fontSize: 13, lineHeight: 20 },
+  devicesDropdown: { backgroundColor: 'white', borderRadius: 12, padding: 15, marginLeft: 15, marginBottom: 15, shadowColor: '#000', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.05, shadowRadius: 5, elevation: 2, borderWidth: 1, borderColor: '#F1F5F9' },
+  deviceItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  deviceName: { flex: 1, fontSize: 14, color: '#1D3B5A', marginLeft: 10, fontWeight: '500' }
 });

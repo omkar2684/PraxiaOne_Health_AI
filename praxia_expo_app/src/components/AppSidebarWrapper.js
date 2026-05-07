@@ -4,12 +4,23 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { AppColors } from '../constants/theme';
 import { ApiService } from '../services/apiService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
 const AppSidebarWrapper = forwardRef(({ navigation, children }, ref) => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const slideAnim = useRef(new Animated.Value(-width * 0.75)).current;
+
+  const [username, setUsername] = useState('User');
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const stored = await AsyncStorage.getItem('username');
+      if (stored) setUsername(stored);
+    };
+    fetchUser();
+  }, []);
 
   useImperativeHandle(ref, () => ({
     toggleDrawer: () => toggleDrawer()
@@ -55,11 +66,11 @@ const AppSidebarWrapper = forwardRef(({ navigation, children }, ref) => {
         <SafeAreaView style={{ flex: 1, backgroundColor: '#F2F4F7' }}>
           <View style={styles.drawerHeader}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>R</Text>
+              <Text style={styles.avatarText}>{username.charAt(0).toUpperCase()}</Text>
             </View>
             <View style={{ marginLeft: 16 }}>
-              <Text style={styles.username}>Ravi Kumar (Offline)</Text>
-              <Text style={styles.email}>ravi@dummy.com</Text>
+              <Text style={styles.username}>{username}</Text>
+              <Text style={styles.email}>Active Session</Text>
             </View>
           </View>
 

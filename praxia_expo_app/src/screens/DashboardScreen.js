@@ -15,10 +15,14 @@ export default function DashboardScreen({ navigation }) {
   const [previewActions, setPreviewActions] = useState([]);
   const [lastUpdated, setLastUpdated] = useState('');
   const [currentTab, setCurrentTab] = useState('dashboard');
+  const [username, setUsername] = useState('');
   const sidebarRef = useRef(null);
 
   useEffect(() => {
     const fetchData = async () => {
+      const storedUsername = await AsyncStorage.getItem('username');
+      if (storedUsername) setUsername(storedUsername);
+
       const v = await ApiService.getVitals();
       const hs = await ApiService.getHealthScore();
       const recs = await ApiService.getRecommendations();
@@ -69,7 +73,7 @@ export default function DashboardScreen({ navigation }) {
             </TouchableOpacity>
           </View>
           <View style={styles.header}>
-            <Text style={styles.greeting}>Hello, Ravi</Text>
+            <Text style={styles.greeting}>Hello, {username || 'User'}</Text>
             <Text style={styles.subGreeting}>Your health summary</Text>
           </View>
 

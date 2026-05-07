@@ -1,73 +1,94 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Platform, StatusBar, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Platform, StatusBar, ActivityIndicator, RefreshControl } from 'react-native';
 import { FontAwesome5, MaterialIcons, Feather, Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { AppColors } from '../constants/theme';
 import AppSidebarWrapper from '../components/AppSidebarWrapper';
 import { ApiService } from '../services/apiService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function TrackProgressScreen({ route, navigation }) {
   const sidebarRef = useRef(null);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [dynamicInsights, setDynamicInsights] = useState(null);
   const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
   const [actionDaysCompleted, setActionDaysCompleted] = useState({});
 
   const passedActions = route?.params?.actions;
 
-  useEffect(() => {
-    const fetchData = async () => {
+  const fetchData = async (isInitial = false) => {
+    if (isInitial) setLoading(true);
+    
+    try {
+      // 1. If we have new passedActions from navigation, save them to DB first
+      if (isInitial && passedActions && passedActions.length > 0) {
+        const saveRes = await ApiService.saveAiActions(passedActions);
+        navigation.setParams({ actions: null });
+        if (saveRes && saveRes.actions) {
+          // Immediately use the server-assigned IDs
+          const daysState = {};
+          saveRes.actions.forEach(action => {
+            daysState[action.id] = action.days_completed || Array(7).fill(false);
+          });
+          setActionDaysCompleted(daysState);
+          setData(saveRes);
+          generateDynamicInsights(saveRes.actions);
+          setLoading(false);
+          return; // Skip second fetch
+        }
+      }
+
       const result = await ApiService.getTrackProgress();
-      if (result) {
-        if (passedActions && passedActions.length > 0) {
-          const mapped = passedActions.map((pa, idx) => ({
-            id: `new_${Date.now()}_${idx}`,
-            icon: pa.icon || 'star',
-            title: pa.title,
-            subtext: pa.subtitle || 'Added from insights',
-            status: "Not Started",
-            status_color: "error",
-            color_hex: "#EF4444",
-            is_actionable: false
-          }));
-          result.actions = [...mapped, ...(result.actions || [])];
-          
-          const completed = result.actions.filter(a => a.status === "On Track").length;
-          const partial = result.actions.filter(a => a.status === "Partial").length;
-          const not_started = result.actions.filter(a => a.status === "Not Started").length;
-          const total = result.actions.length;
-          result.weekly_summary = {
-            ...result.weekly_summary,
-            completed, partial, not_started, total,
-            progress_percent: total > 0 ? Math.round((completed / total) * 100) : 0
-          };
-          const initialDays = {};
-          result.actions.forEach((_, idx) => {
-            initialDays[idx] = Array(7).fill(false);
-          });
-          setActionDaysCompleted(initialDays);
-          
-          setData(result);
-          generateDynamicInsights(result.actions);
-        } else if (result && result.actions) {
-          const initialDays = {};
-          result.actions.forEach((_, idx) => {
-            initialDays[idx] = Array(7).fill(false);
-          });
-          setActionDaysCompleted(initialDays);
-          setData(result);
+      if (result && result.actions) {
+        const daysState = {};
+        result.actions.forEach(action => {
+          daysState[action.id] = action.days_completed || Array(7).fill(false);
+        });
+        
+        setActionDaysCompleted(daysState);
+        setData(result);
+        
+        // Refresh insights only on initial load or if explicitly requested
+        if (isInitial || !dynamicInsights) {
           generateDynamicInsights(result.actions);
         }
       }
-      setLoading(false);
-    };
-    fetchData();
+    } catch (error) {
+      console.error("Fetch data error:", error);
+    } finally {
+      if (isInitial) setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData(true);
   }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      // Refresh in background when returning to screen
+      fetchData(false);
+    }, [])
+  );
 
   const generateDynamicInsights = async (actions) => {
     if (!actions || actions.length === 0) return;
     setIsGeneratingInsights(true);
-    const insightsData = await ApiService.getTrackProgressInsights(actions);
+    
+    // Use the days_completed from state if available, else from backend objects
+    const enrichedActions = actions.map(a => {
+      const days = actionDaysCompleted[a.id] || a.days_completed || Array(7).fill(false);
+      const count = days.filter(d => d).length;
+      return {
+        ...a,
+        days_completed_count: count,
+        adherence_percentage: Math.round((count / 7) * 100)
+      };
+    });
+
+    const insightsData = await ApiService.getTrackProgressInsights(enrichedActions);
     if (insightsData && Object.keys(insightsData).length > 0) {
       setDynamicInsights(insightsData);
     }
@@ -76,80 +97,69 @@ export default function TrackProgressScreen({ route, navigation }) {
 
 
 
-  const toggleDay = (actionIndex, dayIndex) => {
-    setActionDaysCompleted(prev => {
-      const currentDays = [...(prev[actionIndex] || Array(7).fill(false))];
-      currentDays[dayIndex] = !currentDays[dayIndex];
-      const newState = { ...prev, [actionIndex]: currentDays };
-      
-      // Update data status based on days
-      const totalDays = currentDays.filter(d => d).length;
-      let status = "Not Started";
-      let statusColor = "error";
-      let colorHex = "#EF4444";
-      
-      if (totalDays > 4) {
-        status = "On Track"; statusColor = "success"; colorHex = "#10B981";
-      } else if (totalDays > 0) {
-        status = "Partial"; statusColor = "warning"; colorHex = "#F59E0B";
-      }
-      
-      setData(prevData => {
-        if (!prevData) return prevData;
-        const newActions = [...prevData.actions];
-        if (newActions[actionIndex] && !newActions[actionIndex].is_actionable) {
-          newActions[actionIndex] = { ...newActions[actionIndex], status, status_color: statusColor, color_hex: colorHex };
-        }
-        
-        const completed = newActions.filter(a => a.status === "On Track").length;
-        const partial = newActions.filter(a => a.status === "Partial").length;
-        const not_started = newActions.filter(a => a.status === "Not Started").length;
-        const total = newActions.length;
-        const progress_percent = total > 0 ? Math.round((completed / total) * 100) : 0;
-        
-        return { 
-          ...prevData, 
-          actions: newActions, 
-          weekly_summary: { completed, partial, not_started, total, progress_percent } 
-        };
-      });
-      
-      return newState;
+  useEffect(() => {
+    if (data && data.actions) {
+      const timer = setTimeout(() => {
+        generateDynamicInsights(data.actions);
+      }, 2000); // 2s debounce
+      return () => clearTimeout(timer);
+    }
+  }, [data?.actions]);
+
+  const toggleDay = async (actionId, dayIndex) => {
+    // 1. Get current state
+    const currentDays = [...(actionDaysCompleted[actionId] || Array(7).fill(false))];
+    
+    // 2. Toggle the day
+    currentDays[dayIndex] = !currentDays[dayIndex];
+    
+    // 3. Update local state immediately (Optimistic UI)
+    setActionDaysCompleted(prev => ({ ...prev, [actionId]: currentDays }));
+    
+    // 4. Update the main data object to keep UI consistent
+    setData(prev => {
+      if (!prev) return prev;
+      const newActions = prev.actions.map(a => 
+        a.id === actionId ? { ...a, days_completed: currentDays } : a
+      );
+      return { ...prev, actions: newActions };
     });
+
+    try {
+      // 5. Permanent Save to Database
+      const success = await ApiService.updateActionTask(actionId, { days_completed: currentDays });
+      if (!success) {
+        // Rollback on failure if needed (optional but safer)
+        console.warn("Failed to sync checkmark to server");
+      }
+    } catch (err) {
+      console.error("Sync error:", err);
+    }
   };
 
-  const handleUpdateStatus = (actionId) => {
+  const handleUpdateStatus = async (actionId, newStatus) => {
     if (!data) return;
     
+    let updateData = {};
+    const act = data.actions.find(a => a.id === actionId);
+    if (!act) return;
+
+    if (newStatus === "On Track") {
+      updateData = { status: "On Track", status_color: "success", color_hex: "#10B981" };
+    } else if (newStatus === "Partial") {
+      updateData = { status: "Partial", status_color: "warning", color_hex: "#F59E0B" };
+    } else {
+      updateData = { status: "Not Started", status_color: "error", color_hex: "#EF4444" };
+    }
+
+    // Update Local State
     setData(prev => {
-      const newActions = prev.actions.map(act => {
-        if (act.id === actionId && !act.is_actionable) {
-          // Cycle status: On Track -> Partial -> Not Started -> On Track
-          let nextStatus, nextColor, nextColorHex;
-          if (act.status === "On Track") {
-            nextStatus = "Partial"; nextColor = "warning"; nextColorHex = "#F59E0B";
-          } else if (act.status === "Partial") {
-            nextStatus = "Not Started"; nextColor = "error"; nextColorHex = "#EF4444";
-          } else {
-            nextStatus = "On Track"; nextColor = "success"; nextColorHex = "#10B981";
-          }
-          return { ...act, status: nextStatus, status_color: nextColor, color_hex: nextColorHex };
-        }
-        return act;
-      });
-      
-      const completed = newActions.filter(a => a.status === "On Track").length;
-      const partial = newActions.filter(a => a.status === "Partial").length;
-      const not_started = newActions.filter(a => a.status === "Not Started").length;
-      const total = newActions.length;
-      const progress_percent = total > 0 ? Math.round((completed / total) * 100) : 0;
-      
-      return { 
-        ...prev, 
-        actions: newActions, 
-        weekly_summary: { completed, partial, not_started, total, progress_percent } 
-      };
+      const newActions = prev.actions.map(a => a.id === actionId ? { ...a, ...updateData } : a);
+      return { ...prev, actions: newActions };
     });
+
+    // Sync to Database
+    await ApiService.updateActionTask(actionId, updateData);
   };
 
   const getMaterialIconName = (name) => {
@@ -158,11 +168,7 @@ export default function TrackProgressScreen({ route, navigation }) {
   };
 
   const ActionCard = ({ id, icon, title, subtext, statusText, statusColor, color, isLast = false, showSchedule = false }) => (
-    <TouchableOpacity 
-      style={[styles.actionRow, isLast && { borderBottomWidth: 0 }]}
-      onPress={() => showSchedule ? null : handleUpdateStatus(id)}
-      activeOpacity={showSchedule ? 1 : 0.7}
-    >
+    <View style={[styles.actionRow, isLast && { borderBottomWidth: 0 }]}>
       <View style={styles.actionHeader}>
         <View style={styles.actionLeft}>
           <View style={[styles.iconBox, { backgroundColor: `${color}15` }]}>
@@ -173,29 +179,50 @@ export default function TrackProgressScreen({ route, navigation }) {
             <Text style={styles.actionSubtext}>{subtext}</Text>
           </View>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: `${statusColor}15` }]}>
-          <Text style={[styles.statusText, { color: statusColor }]}>{statusText}</Text>
-        </View>
-        <Feather name="chevron-right" size={20} color="#CBD5E1" />
       </View>
       
       {!showSchedule ? (
-        <View style={styles.daysRow}>
-          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, dayIdx) => {
-             const isCompleted = actionDaysCompleted[id] ? actionDaysCompleted[id][dayIdx] : false;
-             return (
-               <TouchableOpacity 
-                 key={dayIdx} 
-                 onPress={() => toggleDay(id, dayIdx)}
-                 style={[
-                   styles.dayCircle, 
-                   isCompleted ? { backgroundColor: color, borderColor: color } : {}
-                 ]}
-               >
-                 <Text style={[styles.dayText, isCompleted ? { color: 'white' } : {}]}>{day}</Text>
-               </TouchableOpacity>
-             );
-          })}
+        <View style={styles.actionControls}>
+          <View style={styles.statusButtonsContainer}>
+            <TouchableOpacity 
+              onPress={() => handleUpdateStatus(id, "Not Started")}
+              style={[styles.miniStatusButton, statusText === "Not Started" && { backgroundColor: '#FEE2E2', borderColor: '#EF4444' }]}
+            >
+              <Text style={[styles.miniStatusText, statusText === "Not Started" && { color: '#EF4444' }]}>Not Started</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              onPress={() => handleUpdateStatus(id, "Partial")}
+              style={[styles.miniStatusButton, statusText === "Partial" && { backgroundColor: '#FFEDD5', borderColor: '#F59E0B' }]}
+            >
+              <Text style={[styles.miniStatusText, statusText === "Partial" && { color: '#F59E0B' }]}>Partial</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              onPress={() => handleUpdateStatus(id, "On Track")}
+              style={[styles.miniStatusButton, statusText === "On Track" && { backgroundColor: '#DCFCE7', borderColor: '#10B981' }]}
+            >
+              <Text style={[styles.miniStatusText, statusText === "On Track" && { color: '#10B981' }]}>On Track</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.daysRow}>
+            {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, dayIdx) => {
+               const isCompleted = actionDaysCompleted[id] ? actionDaysCompleted[id][dayIdx] : false;
+               return (
+                 <TouchableOpacity 
+                   key={dayIdx} 
+                   onPress={() => toggleDay(id, dayIdx)}
+                   style={[
+                     styles.dayCircle, 
+                     isCompleted ? { backgroundColor: color, borderColor: color } : {}
+                   ]}
+                 >
+                   <Text style={[styles.dayText, isCompleted ? { color: 'white' } : {}]}>{day}</Text>
+                 </TouchableOpacity>
+               );
+            })}
+          </View>
         </View>
       ) : (
         <TouchableOpacity style={styles.scheduleButton}>
@@ -203,8 +230,14 @@ export default function TrackProgressScreen({ route, navigation }) {
           <Text style={styles.scheduleButtonText}>Schedule Now</Text>
         </TouchableOpacity>
       )}
-    </TouchableOpacity>
+    </View>
   );
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchData(true);
+    setRefreshing(false);
+  };
 
   return (
     <AppSidebarWrapper ref={sidebarRef} navigation={navigation}>
@@ -220,7 +253,17 @@ export default function TrackProgressScreen({ route, navigation }) {
         </TouchableOpacity>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false} 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#3B82F6']}
+          />
+        }
+      >
         
         {loading || !data ? (
           <View style={{ padding: 40, alignItems: 'center' }}>
@@ -363,24 +406,48 @@ export default function TrackProgressScreen({ route, navigation }) {
             {/* Section 4: Outcome Projection */}
             <TouchableOpacity 
               style={styles.card}
-              onPress={() => navigation.navigate('OutcomeSimulation', { projection: dynamicInsights?.projection || data.projection })}
+              onPress={() => {
+                const finalProjection = (dynamicInsights?.projection?.biomarkers?.length > 0) 
+                  ? dynamicInsights.projection 
+                  : data.projection;
+                const finalSignals = (dynamicInsights?.signals?.length > 0)
+                  ? dynamicInsights.signals
+                  : (data.signals || []);
+                  
+                navigation.navigate('OutcomeSimulation', { 
+                  projection: finalProjection,
+                  signals: finalSignals
+                });
+              }}
             >
               <View style={styles.cardHeaderLeft}>
                 <Ionicons name="bullseye" size={20} color="#3B82F6" />
                 <Text style={styles.cardTitle}>If you stay on track</Text>
               </View>
-              <View style={styles.projectionBox}>
-                <MaterialIcons name="trending-up" size={28} color="#10B981" />
+              <View style={[styles.projectionBox, isGeneratingInsights && { opacity: 0.6 }]}>
+                {isGeneratingInsights ? (
+                  <ActivityIndicator size="small" color="#3B82F6" style={{ marginRight: 15 }} />
+                ) : (
+                  <MaterialIcons name="trending-up" size={28} color="#10B981" />
+                )}
                 <View style={styles.projectionTextContainer}>
-                  <Text style={styles.projectionText}>
-                    {(dynamicInsights?.projection?.text || data.projection?.text || '').split(/glucose levels/i).map((part, idx, arr) => (
-                      <React.Fragment key={idx}>
-                        {part}
-                        {idx < arr.length - 1 && <Text style={{ color: '#10B981', fontWeight: 'bold' }}>glucose levels</Text>}
-                      </React.Fragment>
-                    ))}
-                  </Text>
-                  <Text style={styles.projectionSubtext}>{dynamicInsights?.projection?.subtext || data.projection?.subtext}</Text>
+                  {isGeneratingInsights ? (
+                    <Text style={[styles.projectionText, { fontStyle: 'italic', color: '#64748B' }]}>
+                      Recalculating your projections based on recent progress...
+                    </Text>
+                  ) : (
+                    <>
+                      <Text style={styles.projectionText}>
+                        {(dynamicInsights?.projection?.text || data.projection?.text || '').split(/glucose levels/i).map((part, idx, arr) => (
+                          <React.Fragment key={idx}>
+                            {part}
+                            {idx < arr.length - 1 && <Text style={{ color: '#10B981', fontWeight: 'bold' }}>glucose levels</Text>}
+                          </React.Fragment>
+                        ))}
+                      </Text>
+                      <Text style={styles.projectionSubtext}>{dynamicInsights?.projection?.subtext || data.projection?.subtext}</Text>
+                    </>
+                  )}
                 </View>
               </View>
               <View style={{ marginTop: 12 }}>
@@ -641,6 +708,28 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#64748B',
     marginTop: 2,
+  },
+  actionControls: {
+    marginTop: 12,
+    marginLeft: 52,
+  },
+  statusButtonsContainer: {
+    flexDirection: 'row',
+    marginBottom: 12,
+  },
+  miniStatusButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginRight: 8,
+    backgroundColor: '#F8FAFC',
+  },
+  miniStatusText: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#64748B',
   },
   statusBadge: {
     paddingHorizontal: 8,

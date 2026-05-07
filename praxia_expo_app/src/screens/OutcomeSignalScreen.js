@@ -1,9 +1,51 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Platform, StatusBar } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Platform, StatusBar, ActivityIndicator, Alert } from 'react-native';
 import { Feather, MaterialIcons } from '@expo/vector-icons';
 import { AppColors } from '../constants/theme';
+import * as DocumentPicker from 'expo-document-picker';
+import { ApiService } from '../services/apiService';
 
-export default function OutcomeSignalScreen({ navigation }) {
+export default function OutcomeSignalScreen({ route, navigation }) {
+  const [uploading, setUploading] = useState(false);
+  const [comparison, setComparison] = useState(null);
+
+  const handleUpload = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*'],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) return;
+
+      const fileUri = result.assets[0].uri;
+      const fileName = result.assets[0].name;
+      
+      setUploading(true);
+      
+      // Upload document
+      const uploadRes = await ApiService.uploadDocument(fileUri, 'Lab Result', fileName);
+      if (uploadRes.success) {
+        // Fetch comparison (mocking this endpoint logic in frontend for now since we just need the output, or call an endpoint)
+        // We'll call ApiService.compareLabReport
+        const compRes = await ApiService.compareLabReport(fileUri, fileName);
+        if (compRes.success) {
+          setComparison(compRes.data);
+          Alert.alert("Analysis Complete", "We have compared your new results with your previous baseline.");
+        } else {
+          Alert.alert("Comparison Failed", "Could not analyze the document.");
+        }
+      } else {
+        Alert.alert("Upload Failed", "Could not upload document.");
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Error", "An unexpected error occurred.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -29,11 +71,26 @@ export default function OutcomeSignalScreen({ navigation }) {
         <Text style={styles.subtitle}>(Compared to last week)</Text>
 
         <View style={styles.signalsContainer}>
-          <SignalRow label="Activity" value="+22%" color="#059669" />
-          <View style={styles.divider} />
-          <SignalRow label="Sleep" value="+15%" color="#059669" />
-          <View style={styles.divider} />
-          <SignalRow label="Sugar Intake" value="-18%" color="#2563EB" />
+          {route.params?.signals && route.params.signals.length > 0 ? (
+            route.params.signals.map((signal, index) => (
+              <React.Fragment key={index}>
+                <SignalRow 
+                  label={signal.name} 
+                  value={signal.value} 
+                  color={signal.value.includes('+') ? "#059669" : signal.value.includes('-') ? "#2563EB" : "#1E293B"} 
+                />
+                {index < route.params.signals.length - 1 && <View style={styles.divider} />}
+              </React.Fragment>
+            ))
+          ) : (
+            <>
+              <SignalRow label="Activity" value="+22%" color="#059669" />
+              <View style={styles.divider} />
+              <SignalRow label="Sleep" value="+15%" color="#059669" />
+              <View style={styles.divider} />
+              <SignalRow label="Sugar Intake" value="-18%" color="#2563EB" />
+            </>
+          )}
         </View>
 
         <View style={{ flex: 1, minHeight: 40 }} />
@@ -41,6 +98,42 @@ export default function OutcomeSignalScreen({ navigation }) {
         <View style={styles.infoBox}>
           <Text style={styles.infoText}>Great job! Consistency is key.</Text>
         </View>
+
+        <TouchableOpacity 
+          style={styles.uploadButton}
+          onPress={handleUpload}
+          disabled={uploading}
+        >
+          {uploading ? (
+            <ActivityIndicator color="white" />
+          ) : (
+            <>
+              <MaterialIcons name="upload-file" size={20} color="white" style={{marginRight: 8}} />
+              <Text style={styles.uploadButtonText}>Upload Follow-up Lab Report</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        {comparison && (
+          <View style={styles.comparisonBox}>
+            <Text style={styles.comparisonTitle}>Latest Results Comparison</Text>
+            {comparison.map((item, idx) => (
+              <View key={idx} style={styles.comparisonRow}>
+                <Text style={styles.compLabel}>{item.name}</Text>
+                <View style={styles.compValues}>
+                  <Text style={styles.compOld}>{item.old_value}</Text>
+                  <MaterialIcons name="arrow-right-alt" size={16} color="#94A3B8" style={{marginHorizontal: 4}} />
+                  <Text style={styles.compNew}>{item.new_value}</Text>
+                </View>
+                <View style={[styles.compBadge, { backgroundColor: item.improved ? '#ECFDF5' : '#FEF2F2' }]}>
+                  <Text style={[styles.compBadgeText, { color: item.improved ? '#059669' : '#DC2626' }]}>
+                    {item.delta}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
 
         <TouchableOpacity 
           style={styles.primaryButton}
@@ -80,6 +173,17 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: '#E2E8F0' },
   infoBox: { backgroundColor: '#F1F5F9', padding: 16, borderRadius: 12, marginBottom: 24 },
   infoText: { fontSize: 14, fontWeight: 'bold', color: '#475569', textAlign: 'center' },
-  primaryButton: { backgroundColor: '#1E3A8A', borderRadius: 14, height: 54, justifyContent: 'center', alignItems: 'center' },
+  uploadButton: { flexDirection: 'row', backgroundColor: '#3B82F6', borderRadius: 14, height: 54, justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
+  uploadButtonText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
+  primaryButton: { backgroundColor: '#1E3A8A', borderRadius: 14, height: 54, justifyContent: 'center', alignItems: 'center', marginTop: 'auto' },
   primaryButtonText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
+  comparisonBox: { backgroundColor: '#FFF', borderRadius: 16, padding: 16, marginBottom: 24, borderWidth: 1, borderColor: '#E2E8F0', shadowColor: '#000', shadowOffset: {width:0, height:2}, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  comparisonTitle: { fontSize: 16, fontWeight: 'bold', color: '#1E293B', marginBottom: 16 },
+  comparisonRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  compLabel: { fontSize: 14, fontWeight: '600', color: '#334155', flex: 1 },
+  compValues: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 12 },
+  compOld: { fontSize: 13, color: '#94A3B8', textDecorationLine: 'line-through' },
+  compNew: { fontSize: 14, fontWeight: 'bold', color: '#1E293B' },
+  compBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  compBadgeText: { fontSize: 12, fontWeight: 'bold' },
 });

@@ -12,31 +12,54 @@ export default function LabResultsScreen({ route, navigation }) {
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState('May 6, 2024');
   
-  // Default mock data
-  const [results, setResults] = useState([
-    { name: 'Glucose', value: '102 mg/dL', status: 'High', color: '#EF4444' },
-    { name: 'Hemoglobin A1c', value: '5.8 %', status: 'Normal', color: '#10B981' },
-    { name: 'LDL Cholesterol', value: '134 mg/dL', status: 'High', color: '#F59E0B' },
-    { name: 'HDL Cholesterol', value: '42 mg/dL', status: 'Normal', color: '#10B981' },
-    { name: 'Triglycerides', value: '168 mg/dL', status: 'Normal', color: '#10B981' },
-    { name: 'Vitamin D', value: '22 ng/mL', status: 'Low', color: '#F59E0B' },
-  ]);
+  const [results, setResults] = useState([]);
 
-  // Load passed biomarkers if navigated from ConnectDataScreen
+  // Load passed biomarkers if navigated from ConnectDataScreen, or fetch latest from DB
   useEffect(() => {
-    if (route?.params?.biomarkers && route.params.biomarkers.length > 0) {
-      const mapped = route.params.biomarkers.map(b => ({
-        name: b.name,
-        value: `${b.value} ${b.unit || ''}`.trim(),
-        status: b.status,
-        color: b.status === 'High' ? '#EF4444' : b.status === 'Low' ? '#F59E0B' : '#10B981'
-      }));
-      setResults(mapped);
-      
-      const now = new Date();
-      setLastUpdated(now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
-    }
+    const fetchLatest = async () => {
+      setLoading(true);
+      if (route?.params?.biomarkers && route.params.biomarkers.length > 0) {
+        const mapped = route.params.biomarkers.map(b => ({
+          name: b.name,
+          value: `${b.value} ${b.unit || ''}`.trim(),
+          status: b.status,
+          color: b.status === 'High' ? '#EF4444' : b.status === 'Low' ? '#F59E0B' : '#10B981'
+        }));
+        setResults(mapped);
+        updateTimestamp();
+      } else {
+        const latest = await ApiService.getLatestLabResults();
+        if (latest && latest.length > 0) {
+          const mapped = latest.map(b => ({
+            name: b.name,
+            value: b.value,
+            status: b.status,
+            color: b.color || (b.status === 'High' ? '#EF4444' : b.status === 'Low' ? '#F59E0B' : '#10B981')
+          }));
+          setResults(mapped);
+          updateTimestamp();
+        } else {
+          // Default mock data if nothing in DB
+          setResults([
+            { name: 'Glucose', value: '102 mg/dL', status: 'High', color: '#EF4444' },
+            { name: 'Hemoglobin A1c', value: '5.8 %', status: 'Normal', color: '#10B981' },
+            { name: 'LDL Cholesterol', value: '134 mg/dL', status: 'High', color: '#F59E0B' },
+            { name: 'HDL Cholesterol', value: '42 mg/dL', status: 'Normal', color: '#10B981' },
+            { name: 'Triglycerides', value: '168 mg/dL', status: 'Normal', color: '#10B981' },
+            { name: 'Vitamin D', value: '22 ng/mL', status: 'Low', color: '#F59E0B' }
+          ]);
+        }
+      }
+      setLoading(false);
+    };
+
+    fetchLatest();
   }, [route?.params?.biomarkers]);
+
+  const updateTimestamp = () => {
+    const now = new Date();
+    setLastUpdated(now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
+  };
 
   const handleUpload = async () => {
     try {

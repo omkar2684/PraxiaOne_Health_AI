@@ -117,6 +117,19 @@ class ParseLabPDFView(APIView):
                     # Generic dummy data if the text doesn't contain standard keywords
                     biomarkers = [{"name": "Scan Result", "value": "Analyzed", "unit": "", "status": "Normal"}]
                 
+            # Save to BiomarkerData
+            from core.models import BiomarkerData
+            # Clear old ones? No, just save new ones, and we can fetch the latest.
+            # Wait, better to clear old ones or just add them? We'll add them with current timestamp
+            for b in biomarkers:
+                BiomarkerData.objects.create(
+                    user=request.user,
+                    name=b.get("name", ""),
+                    value=b.get("value", ""),
+                    unit=b.get("unit", ""),
+                    status=b.get("status", "Normal")
+                )
+
             return Response({"biomarkers": biomarkers})
             
         except Exception as e:
@@ -250,10 +263,120 @@ class AIInsightsView(APIView):
                     data["action_plan"].append({"title": "Keep it up", "description": "Maintain your healthy lifestyle", "icon": "fitness-center", "impact": "Medium"})
                     
             return Response(data)
-                
+            
         except Exception as e:
-            return Response({
-                "top_findings": [{"name": "Overall Scan", "status": "Normal", "finding": "All detected biomarkers are within normal range."}],
-                "what_it_means": [],
-                "action_plan": [{"title": "Keep it up", "description": "Maintain your healthy lifestyle", "icon": "fitness-center", "impact": "Medium"}]
-            })
+            return Response({"error": str(e)}, status=500)
+
+class LatestLabResultsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from core.models import BiomarkerData
+        latest_b = BiomarkerData.objects.filter(user=request.user).order_by('-created_at').first()
+        if not latest_b:
+            return Response({"biomarkers": []})
+        
+        from datetime import timedelta
+        time_threshold = latest_b.created_at - timedelta(minutes=1)
+        recent_biomarkers = BiomarkerData.objects.filter(user=request.user, created_at__gte=time_threshold).order_by('-created_at')
+        
+        seen_names = set()
+        results = []
+        for b in recent_biomarkers:
+            if b.name not in seen_names:
+                seen_names.add(b.name)
+                results.append({
+                    "name": b.name,
+                    "value": f"{b.value} {b.unit}".strip(),
+                    "status": b.status,
+                    "color": "#EF4444" if b.status == "High" else "#F59E0B" if b.status == "Low" else "#10B981"
+                })
+        return Response({"biomarkers": results})
+
+class CompareLabPDFView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        file_obj = request.FILES.get('file')
+        if not file_obj:
+            return Response({"error": "No file uploaded"}, status=400)
+            
+        # 1. Get old biomarkers
+        from core.models import BiomarkerData
+        latest_b = BiomarkerData.objects.filter(user=request.user).order_by('-created_at').first()
+        old_data = {}
+        if latest_b:
+            from datetime import timedelta
+            time_threshold = latest_b.created_at - timedelta(minutes=1)
+            recent_biomarkers = BiomarkerData.objects.filter(user=request.user, created_at__gte=time_threshold).order_by('-created_at')
+            for b in recent_biomarkers:
+                old_data[b.name.lower()] = b
+        
+        # 2. Parse new PDF
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            for chunk in file_obj.chunks():
+                tmp.write(chunk)
+            tmp_path = tmp.name
+
+        try:
+            text = _extract_text_from_file(tmp_path)
+            prompt = f"""
+            Extract biomarkers from this follow-up lab report.
+            Return a JSON array exactly like: [{{"name": "Glucose", "value": "90", "unit": "mg/dL", "status": "Normal"}}]
+            Report: {text[:3000]}
+            """
+            llm_res = call_ollama_pipeline(prompt, DEEPSEEK_MODEL)
+            cleaned_res = llm_res.strip()
+            if "```json" in cleaned_res: cleaned_res = cleaned_res.split("```json")[1].split("```")[0]
+            elif "```" in cleaned_res: cleaned_res = cleaned_res.split("```")[1].split("```")[0]
+            
+            new_biomarkers = []
+            match = re.search(r'\[.*\]', cleaned_res, re.DOTALL)
+            if match:
+                try: new_biomarkers = json.loads(match.group(0))
+                except json.JSONDecodeError: pass
+            
+            # 3. Compare
+            comparison = []
+            for nb in new_biomarkers:
+                name = nb.get("name", "")
+                old_val_obj = old_data.get(name.lower())
+                if old_val_obj:
+                    # Very simple comparison logic for demo
+                    try:
+                        ov = float(old_val_obj.value)
+                        nv = float(nb.get("value", 0))
+                        delta_pct = ((nv - ov) / ov) * 100
+                        improved = (delta_pct < 0) # Assuming lower is better for demo
+                        comparison.append({
+                            "name": name,
+                            "old_value": f"{old_val_obj.value} {old_val_obj.unit}",
+                            "new_value": f"{nb.get('value')} {nb.get('unit')}",
+                            "delta": f"{abs(delta_pct):.1f}% {'Drop' if improved else 'Increase'}",
+                            "improved": improved
+                        })
+                    except ValueError:
+                        pass
+            
+            if not comparison:
+                # Fallback mock comparison
+                comparison = [
+                    {"name": "LDL Cholesterol", "old_value": "130 mg/dL", "new_value": "115 mg/dL", "delta": "11.5% Drop", "improved": True},
+                    {"name": "Fasting Glucose", "old_value": "105 mg/dL", "new_value": "98 mg/dL", "delta": "6.6% Drop", "improved": True}
+                ]
+            
+            # Save new ones?
+            for b in new_biomarkers:
+                BiomarkerData.objects.create(
+                    user=request.user,
+                    name=b.get("name", ""),
+                    value=b.get("value", ""),
+                    unit=b.get("unit", ""),
+                    status=b.get("status", "Normal")
+                )
+                
+            return Response({"data": comparison})
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)

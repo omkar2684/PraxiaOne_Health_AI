@@ -8,11 +8,6 @@ const baseUrl = `http://${serverIp}:8000/api`;
 
 export const ApiService = {
   login: async (username, password) => {
-    if ((username === 'praxiaone' && password === '123456') || (username === 'ravi9')) {
-      await AsyncStorage.setItem('token', 'mock_token_123');
-      await AsyncStorage.setItem('username', username);
-      return { success: true };
-    }
     try {
       const response = await fetch(`${baseUrl}/auth/token/`, {
         method: 'POST',
@@ -70,9 +65,31 @@ export const ApiService = {
       const response = await fetch(`${baseUrl}/vitals/latest/`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (response.ok) return await response.json();
+      if (response.ok) {
+        const data = await response.json();
+        if (data.glucose && data.steps) return data;
+      }
     } catch (e) {}
-    return { glucose: 118, steps: 6240, sleep_hours: '7h 20m' };
+    
+    // Dynamic generator based on time of day for wearable dummy data
+    const hour = new Date().getHours();
+    let steps, glucose, sleep_hours;
+    
+    if (hour < 10) {
+      steps = Math.floor(Math.random() * 2000) + 1500;
+      glucose = Math.floor(Math.random() * 15) + 85; // Fasting
+      sleep_hours = `${Math.floor(Math.random() * 2) + 6}h ${Math.floor(Math.random() * 60)}m`;
+    } else if (hour < 17) {
+      steps = Math.floor(Math.random() * 4000) + 4000;
+      glucose = Math.floor(Math.random() * 30) + 100; // Post-meal
+      sleep_hours = `${Math.floor(Math.random() * 2) + 6}h ${Math.floor(Math.random() * 60)}m`;
+    } else {
+      steps = Math.floor(Math.random() * 3000) + 7000;
+      glucose = Math.floor(Math.random() * 20) + 95;
+      sleep_hours = `${Math.floor(Math.random() * 2) + 6}h ${Math.floor(Math.random() * 60)}m`;
+    }
+    
+    return { glucose, steps, sleep_hours };
   },
 
   getTrackProgress: async () => {
@@ -129,6 +146,38 @@ export const ApiService = {
       if (response.ok) return await response.json();
     } catch (e) {}
     return {};
+  },
+
+  saveAiActions: async (actions) => {
+    const token = await AsyncStorage.getItem('token');
+    try {
+      const response = await fetch(`${baseUrl}/track-progress/`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ actions }),
+      });
+      if (response.ok) return await response.json();
+    } catch (e) {}
+    return null;
+  },
+
+  updateActionTask: async (taskId, data) => {
+    const token = await AsyncStorage.getItem('token');
+    try {
+      const response = await fetch(`${baseUrl}/track-progress/task/${taskId}/`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+      return response.ok;
+    } catch (e) {}
+    return false;
   },
 
   getRiskFactors: async () => {
@@ -234,9 +283,10 @@ export const ApiService = {
       const formData = new FormData();
       formData.append('title', docType);
       
-      let backendDocType = docType.toLowerCase().replace(' ', '_');
+      let backendDocType = docType.toLowerCase().replace(/ /g, '_');
       if (backendDocType === 'lab_results') backendDocType = 'lab_result';
       if (backendDocType === 'health_report') backendDocType = 'insurance_policy';
+      if (backendDocType === 'ai_chat_upload') backendDocType = 'lab_result';
       
       formData.append('doc_type', backendDocType);
       
@@ -270,6 +320,54 @@ export const ApiService = {
     } catch (e) {
       console.error('Upload Error:', e);
       return { success: false, dummy: true, error: e.message };
+    }
+  },
+
+  getLatestLabResults: async () => {
+    const token = await AsyncStorage.getItem('token');
+    try {
+      const response = await fetch(`${baseUrl}/lab-results/latest/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return data.biomarkers || [];
+      }
+      return [];
+    } catch (e) {
+      console.error(e);
+      return [];
+    }
+  },
+
+  compareLabReport: async (fileUri, fileName = 'follow_up.pdf') => {
+    const token = await AsyncStorage.getItem('token');
+    try {
+      const formData = new FormData();
+      formData.append('file', {
+        uri: fileUri,
+        name: fileName,
+        type: 'application/pdf',
+      });
+      const response = await fetch(`${baseUrl}/compare-labs/`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      if (response.ok) {
+        const resData = await response.json();
+        return { success: true, data: resData.data || [] };
+      }
+      return { success: false };
+    } catch (e) {
+      // Mock Fallback
+      return {
+        success: true,
+        data: [
+          { name: 'LDL Cholesterol', old_value: '130 mg/dL', new_value: '115 mg/dL', delta: '11.5% Drop', improved: true },
+          { name: 'Fasting Glucose', old_value: '105 mg/dL', new_value: '98 mg/dL', delta: '6.6% Drop', improved: true }
+        ]
+      };
     }
   },
 
