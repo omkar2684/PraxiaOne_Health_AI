@@ -122,67 +122,6 @@ export default function ConnectDataScreen({ navigation }) {
         <View style={styles.timelineCont}>
           <View style={styles.timelineLine} />
           
-          <Text style={styles.sectionLabel}>WEARABLES & DEVICES</Text>
-          
-          <View style={styles.card}>
-            <View style={styles.iconBox}>
-              <MaterialIcons name="watch" size={28} color="#10B981" />
-            </View>
-            <View style={{flex: 1, marginLeft: 10}}>
-              <Text style={styles.cardTitle}>Scan for Devices</Text>
-              {isScanning && <Text style={{fontSize: 12, color: 'gray', marginTop: 4}}>Scanning Bluetooth...</Text>}
-            </View>
-            <TouchableOpacity 
-              style={[styles.uploadBtn, {backgroundColor: '#10B981'}]} 
-              onPress={() => {
-                setIsScanning(true);
-                setShowDevices(false);
-                setTimeout(() => {
-                  setIsScanning(false);
-                  setShowDevices(true);
-                }, 1500);
-              }}
-            >
-              <Text style={styles.uploadBtnText}>{isScanning ? 'Scanning...' : 'Scan'}</Text>
-            </TouchableOpacity>
-          </View>
-
-          {showDevices && (
-            <View style={styles.devicesDropdown}>
-              <Text style={{fontSize: 12, fontWeight: 'bold', color: 'gray', marginBottom: 10}}>DEVICES FOUND</Text>
-              
-              <TouchableOpacity style={styles.deviceItem} onPress={() => Alert.alert('Success', 'Apple Watch connected!')}>
-                <MaterialIcons name="watch" size={20} color="#1D3B5A" />
-                <Text style={styles.deviceName}>Apple Watch Series 9</Text>
-                <Text style={{color: '#10B981', fontSize: 12, fontWeight: 'bold'}}>Connect</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.deviceItem} onPress={() => Alert.alert('Success', 'Oura Ring connected!')}>
-                <MaterialIcons name="radio-button-unchecked" size={20} color="#1D3B5A" />
-                <Text style={styles.deviceName}>Oura Ring Gen3</Text>
-                <Text style={{color: '#10B981', fontSize: 12, fontWeight: 'bold'}}>Connect</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.deviceItem} onPress={() => Alert.alert('Success', 'Dexcom connected!')}>
-                <MaterialIcons name="sensors" size={20} color="#1D3B5A" />
-                <Text style={styles.deviceName}>Dexcom G7 CGM</Text>
-                <Text style={{color: '#10B981', fontSize: 12, fontWeight: 'bold'}}>Connect</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.deviceItem} onPress={() => Alert.alert('Notice', 'This device is not supported for health data sync.')}>
-                <MaterialIcons name="headphones" size={20} color="#64748B" />
-                <Text style={[styles.deviceName, {color: '#64748B'}]}>AirPods Pro</Text>
-                <Text style={{color: 'gray', fontSize: 12}}>Unsupported</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.deviceItem} onPress={() => Alert.alert('Notice', 'This device is not supported for health data sync.')}>
-                <MaterialIcons name="tv" size={20} color="#64748B" />
-                <Text style={[styles.deviceName, {color: '#64748B'}]}>Living Room TV</Text>
-                <Text style={{color: 'gray', fontSize: 12}}>Unsupported</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
           <Text style={[styles.sectionLabel, {marginTop: 20}]}>DOCUMENT UPLOADS</Text>
 
           <View style={styles.card}>

@@ -1,5 +1,5 @@
-import React, { useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { AppColors } from '../constants/theme';
@@ -7,6 +7,8 @@ import AppSidebarWrapper from '../components/AppSidebarWrapper';
 
 export default function DataSourcesScreen({ navigation }) {
   const sidebarRef = useRef(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [showDevices, setShowDevices] = useState(false);
 
   return (
     <AppSidebarWrapper ref={sidebarRef} navigation={navigation}>
@@ -73,6 +75,52 @@ export default function DataSourcesScreen({ navigation }) {
                 <Text style={styles.itemStatus}><MaterialIcons name="check-circle" size={12} color={AppColors.primary} /> Connected</Text>
               </View>
               <MaterialIcons name="chevron-right" size={24} color="#CBD5E1" />
+            </View>
+            <View style={styles.divider} />
+
+            <View style={{marginTop: 10}}>
+              <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'}}>
+                <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                  <View style={[styles.iconBox, {backgroundColor: '#10B981', width: 40, height: 40}]}>
+                    <MaterialIcons name="watch" size={24} color="white" />
+                  </View>
+                  <View style={{marginLeft: 15}}>
+                    <Text style={styles.itemTitle}>Scan for Devices</Text>
+                    {isScanning && <Text style={{fontSize: 12, color: 'gray', marginTop: 2}}>Scanning Bluetooth...</Text>}
+                  </View>
+                </View>
+                <TouchableOpacity 
+                  style={styles.syncBtn} 
+                  onPress={() => {
+                    setIsScanning(true);
+                    setShowDevices(false);
+                    setTimeout(() => {
+                      setIsScanning(false);
+                      setShowDevices(true);
+                    }, 1500);
+                  }}
+                >
+                  <Text style={styles.syncBtnText}>{isScanning ? 'Scanning...' : 'Scan'}</Text>
+                </TouchableOpacity>
+              </View>
+
+              {showDevices && (
+                <View style={{marginTop: 15, padding: 15, backgroundColor: '#F8FAFC', borderRadius: 12}}>
+                  <Text style={{fontSize: 12, fontWeight: 'bold', color: 'gray', marginBottom: 10}}>DEVICES FOUND</Text>
+                  
+                  <TouchableOpacity style={{flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#E2E8F0'}} onPress={() => Alert.alert('Success', 'Praxia Smart Ring connected!')}>
+                    <MaterialIcons name="radio-button-unchecked" size={20} color="#1D3B5A" />
+                    <Text style={{flex: 1, marginLeft: 10, fontSize: 14, fontWeight: '600', color: '#1D3B5A'}}>Praxia Smart Ring</Text>
+                    <Text style={{color: '#10B981', fontSize: 12, fontWeight: 'bold'}}>Connect</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity style={{flexDirection: 'row', alignItems: 'center', paddingVertical: 10}} onPress={() => Alert.alert('Success', 'Praxia Watch connected!')}>
+                    <MaterialIcons name="watch" size={20} color="#1D3B5A" />
+                    <Text style={{flex: 1, marginLeft: 10, fontSize: 14, fontWeight: '600', color: '#1D3B5A'}}>Praxia Watch</Text>
+                    <Text style={{color: '#10B981', fontSize: 12, fontWeight: 'bold'}}>Connect</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           </View>
 

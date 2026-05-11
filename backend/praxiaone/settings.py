@@ -237,6 +237,9 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "UTC"
 
+# Because the user is running natively without Redis, force Celery to process synchronously!
+CELERY_TASK_ALWAYS_EAGER = True
+
 # -----------------------
 # Logging
 # -----------------------

@@ -102,10 +102,7 @@ const AppSidebarWrapper = forwardRef(({ navigation, children }, ref) => {
               <Text style={styles.itemText}>5. Track Progress</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('LabResults')}>
-              <MaterialIcons name="science" size={22} color="#1D3B5A" style={{width: 30}} />
-              <Text style={styles.itemText}>MVP Flow Start</Text>
-            </TouchableOpacity>
+
 
             <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('Prediction')}>
               <MaterialIcons name="auto-awesome" size={22} color="#1D3B5A" style={{width: 30}} />
