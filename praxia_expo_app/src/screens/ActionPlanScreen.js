@@ -11,15 +11,54 @@ export default function ActionPlanScreen({ route, navigation }) {
   
   // Read insights data passed from previous screen
   const insightsData = route?.params?.insightsData;
-  const initialActions = insightsData?.action_plan?.map((a, i) => ({
-    id: a.id?.toString() || i.toString(),
-    title: a.title,
-    subtitle: a.description,
-    icon: a.icon || 'check-circle',
-    isActive: a.isActive || false
-  })) || [];
+  const [actions, setActions] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  const [actions, setActions] = useState(initialActions);
+  useEffect(() => {
+    loadActions();
+  }, []);
+
+  const loadActions = async () => {
+    try {
+      const cached = await AsyncStorage.getItem('cached_action_plan');
+      if (cached) {
+        setActions(JSON.parse(cached));
+      } else if (route?.params?.insightsData) {
+        processInitialActions(route.params.insightsData);
+      } else {
+        // Fetch from API if no cache and no params
+        fetchLatestFromApi();
+      }
+    } catch (e) {
+      fetchLatestFromApi();
+    }
+  };
+
+  const processInitialActions = (data) => {
+    const mapped = data?.action_plan?.map((a, i) => ({
+      id: a.id?.toString() || i.toString(),
+      title: a.title,
+      subtitle: a.description,
+      icon: a.icon || 'check-circle',
+      isActive: a.isActive || false
+    })) || [];
+    setActions(mapped);
+    AsyncStorage.setItem('cached_action_plan', JSON.stringify(mapped));
+  };
+
+  const fetchLatestFromApi = async () => {
+    setLoading(true);
+    try {
+      const insights = await ApiService.getLatestInsights(); // Assuming this exists or similar
+      if (insights && insights.action_plan) {
+        processInitialActions(insights);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
   const [modalVisible, setModalVisible] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
@@ -48,21 +87,28 @@ export default function ActionPlanScreen({ route, navigation }) {
   const handleSave = () => {
     if (!editTitle.trim()) return;
     if (editingId) {
-      setActions(actions.map(a => a.id === editingId ? { ...a, title: editTitle, subtitle: editDesc } : a));
+      const updated = actions.map(a => a.id === editingId ? { ...a, title: editTitle, subtitle: editDesc } : a);
+      setActions(updated);
+      AsyncStorage.setItem('cached_action_plan', JSON.stringify(updated));
     } else {
-      setActions([...actions, { id: Date.now().toString(), title: editTitle, subtitle: editDesc, icon: 'star' }]);
+      const updated = [...actions, { id: Date.now().toString(), title: editTitle, subtitle: editDesc, icon: 'star' }];
+      setActions(updated);
+      AsyncStorage.setItem('cached_action_plan', JSON.stringify(updated));
     }
     setModalVisible(false);
   };
 
   const toggleActive = async (action) => {
     const willBeActive = !action.isActive;
+    const now = Date.now().toString();
     if (willBeActive) {
-      await AsyncStorage.setItem(`plan_active_${action.id}`, 'true');
+      await AsyncStorage.setItem(`plan_active_${action.id}`, now);
     } else {
       await AsyncStorage.removeItem(`plan_active_${action.id}`);
     }
-    setActions(actions.map(a => a.id === action.id ? { ...a, isActive: willBeActive } : a));
+    const updated = actions.map(a => a.id === action.id ? { ...a, isActive: willBeActive, activatedAt: willBeActive ? now : null } : a);
+    setActions(updated);
+    await AsyncStorage.setItem('cached_action_plan', JSON.stringify(updated));
   };
 
   const handleActionOptions = (action) => {
@@ -72,7 +118,12 @@ export default function ActionPlanScreen({ route, navigation }) {
       [
         { text: action.isActive ? 'Deactivate' : 'Activate Plan', onPress: () => toggleActive(action) },
         { text: 'Edit', onPress: () => openEditModal(action) },
-        { text: 'Delete', onPress: () => setActions(actions.filter(a => a.id !== action.id)), style: 'destructive' },
+        { text: 'Delete', onPress: async () => {
+          const updated = actions.filter(a => a.id !== action.id);
+          setActions(updated);
+          await AsyncStorage.setItem('cached_action_plan', JSON.stringify(updated));
+          await AsyncStorage.removeItem(`plan_active_${action.id}`);
+        }, style: 'destructive' },
         { text: 'Cancel', style: 'cancel' }
       ],
       { cancelable: true }
@@ -83,14 +134,17 @@ export default function ActionPlanScreen({ route, navigation }) {
     <AppSidebarWrapper ref={sidebarRef} navigation={navigation}>
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <MaterialIcons name="arrow-back" size={24} color="#1D3B5A" />
+          <TouchableOpacity onPress={() => sidebarRef.current?.toggleDrawer()}>
+            <MaterialIcons name="menu" size={24} color="#1D3B5A" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Action Plan</Text>
-          <View style={{width: 24}} />
+          <TouchableOpacity onPress={fetchLatestFromApi}>
+            <MaterialIcons name="refresh" size={24} color="#1D3B5A" />
+          </TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={styles.scroll}>
+          {loading && <ActivityIndicator style={{marginBottom: 10}} />}
           <Text style={styles.sectionTitle}>Your Top Actions</Text>
 
           {actions.map((action, idx) => {

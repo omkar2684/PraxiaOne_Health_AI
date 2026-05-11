@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Modal, FlatList } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { AppColors } from '../constants/theme';
@@ -14,6 +14,89 @@ export default function ConnectDataScreen({ navigation }) {
   const [riskFactors, setRiskFactors] = useState(null);
   const [isScanning, setIsScanning] = useState(false);
   const [showDevices, setShowDevices] = useState(false);
+  const [previousUploads, setPreviousUploads] = useState([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  React.useEffect(() => {
+    loadPreviousUploads();
+  }, []);
+
+  const loadPreviousUploads = async () => {
+    try {
+      const saved = await AsyncStorage.getItem('previous_uploads');
+      if (saved) setPreviousUploads(JSON.parse(saved));
+    } catch (e) {}
+  };
+
+  const saveUpload = async (name, uri) => {
+    try {
+      const saved = await AsyncStorage.getItem('previous_uploads');
+      let list = saved ? JSON.parse(saved) : [];
+      if (!list.find(u => u.uri === uri)) {
+        list.push({ name, uri });
+        await AsyncStorage.setItem('previous_uploads', JSON.stringify(list));
+        setPreviousUploads(list);
+      }
+    } catch (e) {}
+  };
+
+  const handlePreviousSelect = (file) => {
+    setShowDropdown(false);
+    processFile(file.uri, file.name, 'Lab Results');
+  };
+
+  const processFile = async (fileUri, fileName, docType) => {
+    setDocumentUploaded(true);
+    setIsAiThinking(true);
+    setRiskFactors(null);
+    
+    try {
+      const aiResult = await ApiService.uploadLabReportPDF(fileUri, fileName);
+      setIsAiThinking(false);
+      
+      if (aiResult.success && aiResult.biomarkers) {
+        if (aiResult.biomarkers.length === 0) {
+          setIsStable(true);
+          setRiskFactors({
+            factors: [{ name: 'Scan Result', status: 'Normal' }],
+            warning_message: 'Everything looks good! No abnormalities found.',
+            explanation_title: 'Summary',
+            explanation_text: 'Our AI could not find any elevated biomarkers in the uploaded document.',
+            raw_biomarkers: []
+          });
+        } else {
+          const factors = aiResult.biomarkers.map(b => ({
+            name: b.name,
+            status: b.status || 'Normal'
+          }));
+          const hasAbnormal = factors.some(f => 
+            f.status.toLowerCase() !== 'normal' && f.status.toLowerCase() !== 'optimal'
+          );
+          setIsStable(!hasAbnormal);
+          setRiskFactors({
+            factors: factors.slice(0, 6),
+            warning_message: hasAbnormal 
+              ? 'Our AI detected some abnormal biomarkers in your document.' 
+              : 'Everything looks optimal according to our AI analysis.',
+            explanation_title: 'Praxia Analysis Complete',
+            explanation_text: `Praxia processed your document and extracted the key data points above. ${hasAbnormal ? 'We recommend discussing these with your provider.' : 'Keep up the healthy habits!'}`,
+            raw_biomarkers: aiResult.biomarkers
+          });
+        }
+      } else {
+        setIsStable(false);
+        setRiskFactors({
+          factors: [],
+          warning_message: 'Error analyzing document with AI',
+          explanation_title: 'Analysis Failed',
+          explanation_text: aiResult.error || 'Unknown error'
+        });
+      }
+    } catch (e) {
+      setIsAiThinking(false);
+      Alert.alert("Error", "Failed to process document.");
+    }
+  };
 
   const handleUpload = async (docType) => {
     try {
@@ -35,54 +118,12 @@ export default function ConnectDataScreen({ navigation }) {
       
       if (response.success) {
         Alert.alert("Success", `${docType} uploaded successfully!`);
-        
-        setDocumentUploaded(true);
-        setIsAiThinking(true);
-        setRiskFactors(null);
+        await saveUpload(fileName, fileUri);
         
         if (docType === 'Lab Results' || docType === 'Care Plan') {
-          const aiResult = await ApiService.uploadLabReportPDF(fileUri, fileName);
-          setIsAiThinking(false);
-          
-          if (aiResult.success && aiResult.biomarkers) {
-            if (aiResult.biomarkers.length === 0) {
-              setIsStable(true);
-              setRiskFactors({
-                factors: [{ name: 'Scan Result', status: 'Normal' }],
-                warning_message: 'Everything looks good! No abnormalities found.',
-                explanation_title: 'Summary',
-                explanation_text: 'Our AI could not find any elevated biomarkers in the uploaded document.',
-                raw_biomarkers: []
-              });
-            } else {
-              const factors = aiResult.biomarkers.map(b => ({
-                name: b.name,
-                status: b.status || 'Normal'
-              }));
-              const hasAbnormal = factors.some(f => 
-                f.status.toLowerCase() !== 'normal' && f.status.toLowerCase() !== 'optimal'
-              );
-              setIsStable(!hasAbnormal);
-              setRiskFactors({
-                factors: factors.slice(0, 6),
-                warning_message: hasAbnormal 
-                  ? 'Our AI detected some abnormal biomarkers in your document.' 
-                  : 'Everything looks optimal according to our AI analysis.',
-                explanation_title: 'Praxia Analysis Complete',
-                explanation_text: `Praxia processed your document and extracted the key data points above. ${hasAbnormal ? 'We recommend discussing these with your provider.' : 'Keep up the healthy habits!'}`,
-                raw_biomarkers: aiResult.biomarkers
-              });
-            }
-          } else {
-            setIsStable(false);
-            setRiskFactors({
-              factors: [],
-              warning_message: 'Error analyzing document with AI',
-              explanation_title: 'Analysis Failed',
-              explanation_text: aiResult.error || 'Unknown error'
-            });
-          }
+          await processFile(fileUri, fileName, docType);
         } else {
+          setDocumentUploaded(true);
           setIsAiThinking(false);
           setIsStable(true);
           setRiskFactors({
@@ -123,6 +164,17 @@ export default function ConnectDataScreen({ navigation }) {
           <View style={styles.timelineLine} />
           
           <Text style={[styles.sectionLabel, {marginTop: 20}]}>DOCUMENT UPLOADS</Text>
+
+          {previousUploads.length > 0 && (
+            <TouchableOpacity 
+              style={styles.dropdownToggle}
+              onPress={() => setShowDropdown(true)}
+            >
+              <MaterialIcons name="history" size={18} color="#64748B" />
+              <Text style={styles.dropdownToggleText}>Choose from previous uploads</Text>
+              <MaterialIcons name="arrow-drop-down" size={24} color="#64748B" />
+            </TouchableOpacity>
+          )}
 
           <View style={styles.card}>
             <View style={styles.iconBox}>
@@ -231,6 +283,38 @@ export default function ConnectDataScreen({ navigation }) {
             </View>
           )}
       </ScrollView>
+
+      <Modal
+        visible={showDropdown}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowDropdown(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Previous Uploads</Text>
+              <TouchableOpacity onPress={() => setShowDropdown(false)}>
+                <MaterialIcons name="close" size={24} color="#1D3B5A" />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={previousUploads}
+              keyExtractor={(item) => item.uri}
+              renderItem={({ item }) => (
+                <TouchableOpacity 
+                  style={styles.dropdownItem}
+                  onPress={() => handlePreviousSelect(item)}
+                >
+                  <MaterialIcons name="picture-as-pdf" size={24} color="#EF4444" />
+                  <Text style={styles.dropdownItemText} numberOfLines={1}>{item.name}</Text>
+                  <MaterialIcons name="chevron-right" size={24} color="#CBD5E1" />
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -266,5 +350,13 @@ const styles = StyleSheet.create({
   explanationText: { color: '#333', fontSize: 13, lineHeight: 20 },
   devicesDropdown: { backgroundColor: 'white', borderRadius: 12, padding: 15, marginLeft: 15, marginBottom: 15, shadowColor: '#000', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.05, shadowRadius: 5, elevation: 2, borderWidth: 1, borderColor: '#F1F5F9' },
   deviceItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  deviceName: { flex: 1, fontSize: 14, color: '#1D3B5A', marginLeft: 10, fontWeight: '500' }
+  deviceName: { flex: 1, fontSize: 14, color: '#1D3B5A', marginLeft: 10, fontWeight: '500' },
+  dropdownToggle: { flexDirection: 'row', backgroundColor: '#F1F5F9', borderRadius: 12, padding: 12, alignItems: 'center', marginHorizontal: 15, marginBottom: 15, borderWidth: 1, borderColor: '#E2E8F0' },
+  dropdownToggleText: { flex: 1, color: '#475569', fontSize: 13, marginLeft: 8, fontWeight: '600' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40, maxHeight: '60%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#1D3B5A' },
+  dropdownItem: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#F8FAFC' },
+  dropdownItemText: { flex: 1, fontSize: 14, color: '#1D3B5A', marginLeft: 12, fontWeight: '500' }
 });

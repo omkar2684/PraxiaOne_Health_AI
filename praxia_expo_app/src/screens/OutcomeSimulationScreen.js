@@ -2,25 +2,73 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Platform, StatusBar } from 'react-native';
 import { Feather, MaterialIcons } from '@expo/vector-icons';
 import { AppColors } from '../constants/theme';
+import AppSidebarWrapper from '../components/AppSidebarWrapper';
 
 export default function OutcomeSimulationScreen({ route, navigation }) {
-  const { projections, causality_analysis } = route.params || {};
+  const sidebarRef = React.useRef(null);
+  const [projectionsData, setProjectionsData] = useState(route.params?.projections || null);
+  const [causalityData, setCausalityData] = useState(route.params?.causality_analysis || []);
+  const [loading, setLoading] = useState(false);
   const [timeframe, setTimeframe] = useState('two_weeks');
 
-  const currentProjection = projections ? projections[timeframe] : null;
+  useEffect(() => {
+    if (!projectionsData) {
+      loadCache();
+    }
+  }, []);
+
+  const loadCache = async () => {
+    try {
+      const cached = await AsyncStorage.getItem('cached_simulation_projections');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        setProjectionsData(parsed.projections);
+        setCausalityData(parsed.causality);
+      } else {
+        fetchLatest();
+      }
+    } catch (e) {
+      fetchLatest();
+    }
+  };
+
+  const fetchLatest = async () => {
+    setLoading(true);
+    try {
+      const res = await ApiService.getOutcomeSimulation(); // Assuming this exists or similar
+      if (res && res.projections) {
+        setProjectionsData(res.projections);
+        setCausalityData(res.causality_analysis);
+        await AsyncStorage.setItem('cached_simulation_projections', JSON.stringify({
+          projections: res.projections,
+          causality: res.causality_analysis
+        }));
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const currentProjection = projectionsData ? projectionsData[timeframe] : null;
   const biomarkers = currentProjection?.biomarkers || [];
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Feather name="chevron-left" size={28} color={AppColors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Outcome Simulation</Text>
-        <View style={{ width: 28 }} />
-      </View>
+    <AppSidebarWrapper ref={sidebarRef} navigation={navigation}>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => sidebarRef.current?.toggleDrawer()} style={styles.backButton}>
+            <MaterialIcons name="menu" size={24} color="#1D3B5A" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Outcome Simulation</Text>
+          <TouchableOpacity onPress={fetchLatest}>
+            <MaterialIcons name="refresh" size={24} color="#1D3B5A" />
+          </TouchableOpacity>
+        </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {loading && <ActivityIndicator style={{marginBottom: 10}} />}
         <Text style={styles.title}>If you stay on track</Text>
         
         <View style={styles.toggleContainer}>
@@ -77,10 +125,10 @@ export default function OutcomeSimulationScreen({ route, navigation }) {
           </Text>
         </View>
 
-        {causality_analysis && causality_analysis.length > 0 && (
+        {causalityData && causalityData.length > 0 && (
           <View style={styles.causalitySection}>
             <Text style={styles.causalityTitle}>Impact Per Activity</Text>
-            {causality_analysis.map((item, index) => (
+            {causalityData.map((item, index) => (
               <View key={index} style={styles.causalityCard}>
                 <View style={styles.causalityRank}>
                   <Text style={styles.causalityRankText}>#{item.rank || index + 1}</Text>
@@ -101,7 +149,8 @@ export default function OutcomeSimulationScreen({ route, navigation }) {
           <Text style={styles.primaryButtonText}>Next: Outcome Signal</Text>
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </AppSidebarWrapper>
   );
 }
 

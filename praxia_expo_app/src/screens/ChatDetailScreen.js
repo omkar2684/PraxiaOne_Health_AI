@@ -1,5 +1,5 @@
-import React, { useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, TextInput, KeyboardAvoidingView, Platform, Modal, FlatList } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { AppColors } from '../constants/theme';
@@ -8,6 +8,25 @@ import AppSidebarWrapper from '../components/AppSidebarWrapper';
 export default function ChatDetailScreen({ navigation }) {
   const sidebarRef = useRef(null);
   const [input, setInput] = useState('');
+  const [previousUploads, setPreviousUploads] = useState([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+
+  React.useEffect(() => {
+    loadPreviousUploads();
+  }, []);
+
+  const loadPreviousUploads = async () => {
+    try {
+      const saved = await AsyncStorage.getItem('previous_uploads');
+      if (saved) setPreviousUploads(JSON.parse(saved));
+    } catch (e) {}
+  };
+
+  const handlePreviousSelect = (file) => {
+    setShowDropdown(false);
+    setSelectedFile(file);
+  };
 
   return (
     <AppSidebarWrapper ref={sidebarRef} navigation={navigation}>
@@ -76,6 +95,26 @@ export default function ChatDetailScreen({ navigation }) {
             </View>
           </ScrollView>
 
+          {selectedFile && (
+            <View style={styles.attachmentStrip}>
+              <MaterialIcons name="picture-as-pdf" size={20} color={AppColors.primary} />
+              <Text style={styles.attachmentText} numberOfLines={1}>Attached: {selectedFile.name}</Text>
+              <TouchableOpacity onPress={() => setSelectedFile(null)}>
+                <MaterialIcons name="close" size={20} color="#EF4444" />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {previousUploads.length > 0 && !selectedFile && (
+            <TouchableOpacity 
+              style={styles.dropdownToggle}
+              onPress={() => setShowDropdown(true)}
+            >
+              <MaterialIcons name="history" size={18} color="#64748B" />
+              <Text style={styles.dropdownToggleText}>Use previous PDF</Text>
+            </TouchableOpacity>
+          )}
+
           <View style={styles.inputArea}>
             <TouchableOpacity style={styles.attachBtn}>
               <MaterialIcons name="add-circle-outline" size={28} color={AppColors.primary} />
@@ -92,6 +131,38 @@ export default function ChatDetailScreen({ navigation }) {
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
+
+      <Modal
+        visible={showDropdown}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowDropdown(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Previous Uploads</Text>
+              <TouchableOpacity onPress={() => setShowDropdown(false)}>
+                <MaterialIcons name="close" size={24} color="#1D3B5A" />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={previousUploads}
+              keyExtractor={(item) => item.uri}
+              renderItem={({ item }) => (
+                <TouchableOpacity 
+                  style={styles.dropdownItem}
+                  onPress={() => handlePreviousSelect(item)}
+                >
+                  <MaterialIcons name="picture-as-pdf" size={24} color="#EF4444" />
+                  <Text style={styles.dropdownItemText} numberOfLines={1}>{item.name}</Text>
+                  <MaterialIcons name="chevron-right" size={24} color="#CBD5E1" />
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
     </AppSidebarWrapper>
   );
 }
@@ -120,4 +191,14 @@ const styles = StyleSheet.create({
   attachBtn: { marginRight: 10 },
   input: { flex: 1, backgroundColor: '#F1F5F9', borderRadius: 25, paddingHorizontal: 20, paddingVertical: 12, fontSize: 15, borderWidth: 1, borderColor: '#E2E8F0' },
   sendBtn: { backgroundColor: AppColors.primary, width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginLeft: 10 },
+  attachmentStrip: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#E2F8EE', paddingHorizontal: 15, paddingVertical: 10, marginHorizontal: 15, borderTopLeftRadius: 10, borderTopRightRadius: 10 },
+  attachmentText: { flex: 1, fontSize: 13, color: '#065F46', marginLeft: 10, fontWeight: 'bold' },
+  dropdownToggle: { flexDirection: 'row', backgroundColor: '#F1F5F9', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, alignItems: 'center', marginHorizontal: 15, marginBottom: 10, alignSelf: 'flex-start', borderWidth: 1, borderColor: '#E2E8F0' },
+  dropdownToggleText: { color: '#475569', fontSize: 12, marginLeft: 6, fontWeight: '600' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40, maxHeight: '60%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#1D3B5A' },
+  dropdownItem: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#F8FAFC' },
+  dropdownItemText: { flex: 1, fontSize: 14, color: '#1D3B5A', marginLeft: 12, fontWeight: '500' }
 });

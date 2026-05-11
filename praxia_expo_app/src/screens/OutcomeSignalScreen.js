@@ -4,8 +4,10 @@ import { Feather, MaterialIcons } from '@expo/vector-icons';
 import { AppColors } from '../constants/theme';
 import * as DocumentPicker from 'expo-document-picker';
 import { ApiService } from '../services/apiService';
+import AppSidebarWrapper from '../components/AppSidebarWrapper';
 
 export default function OutcomeSignalScreen({ route, navigation }) {
+  const sidebarRef = React.useRef(null);
   const [uploading, setUploading] = useState(false);
   const [comparison, setComparison] = useState(null);
 
@@ -47,14 +49,15 @@ export default function OutcomeSignalScreen({ route, navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Feather name="chevron-left" size={28} color={AppColors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Outcome Signal</Text>
-        <View style={{ width: 28 }} />
-      </View>
+    <AppSidebarWrapper ref={sidebarRef} navigation={navigation}>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => sidebarRef.current?.toggleDrawer()} style={styles.backButton}>
+            <MaterialIcons name="menu" size={24} color="#1D3B5A" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Outcome Signal</Text>
+          <View style={{ width: 28 }} />
+        </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.title}>Track Your Progress</Text>
@@ -88,6 +91,11 @@ export default function OutcomeSignalScreen({ route, navigation }) {
                   <MaterialIcons name="arrow-right-alt" size={16} color="#94A3B8" style={{marginHorizontal: 4}} />
                   <Text style={styles.compNew}>{item.new_value}</Text>
                 </View>
+                {item.normal_range && (
+                  <View style={styles.normalRangeBox}>
+                    <Text style={styles.normalRangeText}>Normal: {item.normal_range}</Text>
+                  </View>
+                )}
                 <View style={[styles.compBadge, { backgroundColor: item.improved ? '#ECFDF5' : '#FEF2F2' }]}>
                   <Text style={[styles.compBadgeText, { color: item.improved ? '#059669' : '#DC2626' }]}>
                     {item.delta}
@@ -105,7 +113,8 @@ export default function OutcomeSignalScreen({ route, navigation }) {
           <Text style={styles.primaryButtonText}>Keep It Up!</Text>
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </AppSidebarWrapper>
   );
 }
 
@@ -149,4 +158,6 @@ const styles = StyleSheet.create({
   compNew: { fontSize: 13, fontWeight: 'bold', color: '#1E293B' },
   compBadge: { paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6 },
   compBadgeText: { fontSize: 12, fontWeight: 'bold' },
+  normalRangeBox: { paddingHorizontal: 6, paddingVertical: 2, backgroundColor: '#F8FAFC', borderRadius: 4, marginRight: 8 },
+  normalRangeText: { fontSize: 10, color: '#64748B', fontWeight: 'bold' },
 });

@@ -1,5 +1,5 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Modal, FlatList } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
@@ -15,11 +15,46 @@ export default function LabResultsScreen({ route, navigation }) {
   const [showAll, setShowAll] = useState(false);
   
   const [results, setResults] = useState([]);
+  const [previousUploads, setPreviousUploads] = useState([]);
+  const [showDropdown, setShowDropdown] = useState(false);
 
-  // Load passed biomarkers if navigated from ConnectDataScreen, or fetch latest from DB
   useEffect(() => {
-    const fetchLatest = async () => {
-      setLoading(true);
+    loadCache();
+    loadPreviousUploads();
+  }, []);
+
+  const loadCache = async () => {
+    try {
+      const cached = await AsyncStorage.getItem('cached_lab_results');
+      if (cached) {
+        const { data, timestamp } = JSON.parse(cached);
+        setResults(data);
+        setLastUpdated(timestamp);
+      } else {
+        fetchLatest();
+      }
+    } catch (e) {
+      fetchLatest();
+    }
+  };
+
+  const loadPreviousUploads = async () => {
+    try {
+      const saved = await AsyncStorage.getItem('previous_uploads');
+      if (saved) setPreviousUploads(JSON.parse(saved));
+    } catch (e) {}
+  };
+
+  const saveCache = async (data) => {
+    const now = new Date();
+    const timestamp = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    await AsyncStorage.setItem('cached_lab_results', JSON.stringify({ data, timestamp }));
+    setLastUpdated(timestamp);
+  };
+
+  const fetchLatest = async () => {
+    setLoading(true);
+    try {
       if (route?.params?.biomarkers && route.params.biomarkers.length > 0) {
         const mapped = route.params.biomarkers.map(b => ({
           name: b.name,
@@ -28,7 +63,7 @@ export default function LabResultsScreen({ route, navigation }) {
           color: b.status === 'High' ? '#EF4444' : b.status === 'Low' ? '#F59E0B' : '#10B981'
         }));
         setResults(mapped);
-        updateTimestamp();
+        saveCache(mapped);
       } else {
         const latest = await ApiService.getLatestLabResults();
         if (latest && latest.length > 0) {
@@ -39,28 +74,55 @@ export default function LabResultsScreen({ route, navigation }) {
             color: b.color || (b.status === 'High' ? '#EF4444' : b.status === 'Low' ? '#F59E0B' : '#10B981')
           }));
           setResults(mapped);
-          updateTimestamp();
+          saveCache(mapped);
         } else {
           // Default mock data if nothing in DB
-          setResults([
+          const mock = [
             { name: 'Glucose', value: '102 mg/dL', status: 'High', color: '#EF4444' },
             { name: 'Hemoglobin A1c', value: '5.8 %', status: 'Normal', color: '#10B981' },
             { name: 'LDL Cholesterol', value: '134 mg/dL', status: 'High', color: '#F59E0B' },
             { name: 'HDL Cholesterol', value: '42 mg/dL', status: 'Normal', color: '#10B981' },
             { name: 'Triglycerides', value: '168 mg/dL', status: 'Normal', color: '#10B981' },
             { name: 'Vitamin D', value: '22 ng/mL', status: 'Low', color: '#F59E0B' }
-          ]);
+          ];
+          setResults(mock);
+          saveCache(mock);
         }
       }
+    } catch (e) {
+      console.error(e);
+    } finally {
       setLoading(false);
-    };
+    }
+  };
 
-    fetchLatest();
-  }, [route?.params?.biomarkers]);
+  const processFile = async (fileUri, fileName) => {
+    setLoading(true);
+    try {
+      const res = await ApiService.uploadLabReportPDF(fileUri);
+      if (res.success && res.biomarkers && res.biomarkers.length > 0) {
+        const mapped = res.biomarkers.map(b => ({
+          name: b.name,
+          value: `${b.value} ${b.unit || ''}`.trim(),
+          status: b.status,
+          color: b.status === 'High' ? '#EF4444' : b.status === 'Low' ? '#F59E0B' : '#10B981'
+        }));
+        setResults(mapped);
+        saveCache(mapped);
+        Alert.alert('Success', 'Lab report parsed successfully!');
+      } else {
+        Alert.alert('Notice', 'Could not extract valid data. Try a different report.');
+      }
+    } catch (err) {
+      Alert.alert('Error', 'Failed to process document.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const updateTimestamp = () => {
-    const now = new Date();
-    setLastUpdated(now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
+  const handlePreviousSelect = (file) => {
+    setShowDropdown(false);
+    processFile(file.uri, file.name);
   };
 
   const handleUpload = async () => {
@@ -98,20 +160,29 @@ export default function LabResultsScreen({ route, navigation }) {
     <AppSidebarWrapper ref={sidebarRef} navigation={navigation}>
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <MaterialIcons name="arrow-back" size={24} color="#1D3B5A" />
+          <TouchableOpacity onPress={() => sidebarRef.current?.toggleDrawer()}>
+            <MaterialIcons name="menu" size={24} color="#1D3B5A" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Lab Results</Text>
-          <View style={{width: 24}} />
+          <TouchableOpacity onPress={fetchLatest}>
+            <MaterialIcons name="refresh" size={24} color="#1D3B5A" />
+          </TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={styles.scroll}>
           <View style={styles.topInfo}>
             <Text style={styles.dateText}>Last Updated: {lastUpdated}</Text>
-            <TouchableOpacity onPress={handleUpload} style={styles.uploadBtn}>
-              <MaterialIcons name="upload-file" size={16} color="white" />
-              <Text style={styles.uploadBtnText}>Upload PDF</Text>
-            </TouchableOpacity>
+            <View style={{flexDirection: 'row'}}>
+              {previousUploads.length > 0 && (
+                <TouchableOpacity onPress={() => setShowDropdown(true)} style={[styles.uploadBtn, {backgroundColor: '#6366F1', marginRight: 8}]}>
+                  <MaterialIcons name="history" size={16} color="white" />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity onPress={handleUpload} style={styles.uploadBtn}>
+                <MaterialIcons name="upload-file" size={16} color="white" />
+                <Text style={styles.uploadBtnText}>Upload</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <Text style={styles.sectionTitle}>Key Biomarkers</Text>
@@ -154,6 +225,38 @@ export default function LabResultsScreen({ route, navigation }) {
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
+
+      <Modal
+        visible={showDropdown}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowDropdown(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Previous Uploads</Text>
+              <TouchableOpacity onPress={() => setShowDropdown(false)}>
+                <MaterialIcons name="close" size={24} color="#1D3B5A" />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={previousUploads}
+              keyExtractor={(item) => item.uri}
+              renderItem={({ item }) => (
+                <TouchableOpacity 
+                  style={styles.dropdownItem}
+                  onPress={() => handlePreviousSelect(item)}
+                >
+                  <MaterialIcons name="picture-as-pdf" size={24} color="#EF4444" />
+                  <Text style={styles.dropdownItemText} numberOfLines={1}>{item.name}</Text>
+                  <MaterialIcons name="chevron-right" size={24} color="#CBD5E1" />
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
     </AppSidebarWrapper>
   );
 }
@@ -178,5 +281,11 @@ const styles = StyleSheet.create({
   btn: { backgroundColor: '#2563EB', padding: 18, borderRadius: 12, alignItems: 'center' },
   btnText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
   uploadBtn: { flexDirection: 'row', backgroundColor: '#10B981', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, alignItems: 'center' },
-  uploadBtnText: { color: 'white', fontWeight: 'bold', fontSize: 13, marginLeft: 4 }
+  uploadBtnText: { color: 'white', fontWeight: 'bold', fontSize: 13, marginLeft: 4 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40, maxHeight: '60%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#1D3B5A' },
+  dropdownItem: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#F8FAFC' },
+  dropdownItemText: { flex: 1, fontSize: 14, color: '#1D3B5A', marginLeft: 12, fontWeight: '500' }
 });

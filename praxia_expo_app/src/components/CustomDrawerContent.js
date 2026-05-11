@@ -47,9 +47,16 @@ export default function CustomDrawerContent(props) {
       <DrawerContentScrollView {...props} contentContainerStyle={{paddingTop: 10}}>
         <Text style={styles.sectionTitle}>YOUR JOURNEY</Text>
         
+        <DrawerItem icon="home" label="1. Entry Welcome" route="Welcome" />
+        <DrawerItem icon="storage" label="2. Data Sources" route="DataSources" />
         <DrawerItem icon="insights" label="3. Health Intelligence" route="Dashboard" />
         <DrawerItem icon="chat-bubble-outline" label="4. AI Assistance" route="Assistant" />
-        <DrawerItem icon="trending-up" label="5. Track Progress" route="TrackProgress" />
+        <DrawerItem icon="analytics" label="5. Prediction" route="Prediction" />
+        <DrawerItem icon="check-circle" label="6. Recommendation" route="ActionPlan" />
+        <DrawerItem icon="trending-up" label="7. Track Progress" route="TrackProgress" />
+        <DrawerItem icon="warning" label="8. Escalation" route="Escalation" />
+        <DrawerItem icon="mail" label="9. Message Portal" route="MessagePortal" />
+        <DrawerItem icon="map" label="10. Journey Flow" route="JourneyFlow" />
         
         <View style={styles.divider} />
         <Text style={styles.sectionTitle}>ACCOUNT</Text>

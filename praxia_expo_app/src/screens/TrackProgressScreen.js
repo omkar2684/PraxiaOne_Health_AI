@@ -15,6 +15,8 @@ export default function TrackProgressScreen({ route, navigation }) {
   const [dynamicInsights, setDynamicInsights] = useState(null);
   const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
   const [actionDaysCompleted, setActionDaysCompleted] = useState({});
+  const [newPlans, setNewPlans] = useState([]);
+  const [currentPlans, setCurrentPlans] = useState([]);
 
   const passedActions = route?.params?.actions;
 
@@ -68,30 +70,60 @@ export default function TrackProgressScreen({ route, navigation }) {
 
   useFocusEffect(
     React.useCallback(() => {
-      // Refresh in background when returning to screen
       fetchData(false);
     }, [])
   );
 
+  const calculateHash = (actions) => {
+    return actions.map(a => `${a.id}:${(actionDaysCompleted[a.id] || []).join(',')}:${a.status}`).join('|');
+  };
+
+  const separatePlans = async (actions) => {
+    const now = Date.now();
+    const oneDay = 24 * 60 * 60 * 1000;
+    const newP = [];
+    const currentP = [];
+
+    for (const action of actions) {
+      const activatedAt = await AsyncStorage.getItem(`plan_active_${action.id}`);
+      if (activatedAt && (now - parseInt(activatedAt)) < oneDay) {
+        newP.push(action);
+      } else {
+        currentP.push(action);
+      }
+    }
+    setNewPlans(newP);
+    setCurrentPlans(currentP);
+  };
+
   const generateDynamicInsights = async (actions) => {
     if (!actions || actions.length === 0) return;
-    setIsGeneratingInsights(true);
     
-    // Use the days_completed from state if available, else from backend objects
+    // Check cache first
+    const currentHash = calculateHash(actions);
+    const cachedHash = await AsyncStorage.getItem('track_progress_hash');
+    const cachedInsights = await AsyncStorage.getItem('cached_track_insights');
+    
+    if (currentHash === cachedHash && cachedInsights) {
+      setDynamicInsights(JSON.parse(cachedInsights));
+      separatePlans(actions);
+      return;
+    }
+
+    setIsGeneratingInsights(true);
     const enrichedActions = actions.map(a => {
       const days = actionDaysCompleted[a.id] || a.days_completed || Array(7).fill(false);
       const count = days.filter(d => d).length;
-      return {
-        ...a,
-        days_completed_count: count,
-        adherence_percentage: Math.round((count / 7) * 100)
-      };
+      return { ...a, days_completed_count: count, adherence_percentage: Math.round((count / 7) * 100) };
     });
 
     const insightsData = await ApiService.getTrackProgressInsights(enrichedActions);
     if (insightsData && Object.keys(insightsData).length > 0) {
       setDynamicInsights(insightsData);
+      await AsyncStorage.setItem('cached_track_insights', JSON.stringify(insightsData));
+      await AsyncStorage.setItem('track_progress_hash', currentHash);
     }
+    separatePlans(actions);
     setIsGeneratingInsights(false);
   };
 
@@ -329,33 +361,52 @@ export default function TrackProgressScreen({ route, navigation }) {
             {/* Section 2: Action Tracker */}
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Your Action Tracker</Text>
-              <TouchableOpacity><Text style={styles.linkText}>Edit Plan</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => navigation.navigate('ActionPlan')}><Text style={styles.linkText}>Edit Plan</Text></TouchableOpacity>
             </View>
-            
-            <View style={styles.card}>
-              {data.actions?.map((action, idx) => {
-                const colorMap = {
-                  'success': '#10B981',
-                  'warning': '#F59E0B',
-                  'error': '#EF4444',
-                  'primary': '#3B82F6',
-                };
-                return (
-                  <ActionCard 
-                    key={action.id || idx}
-                    id={action.id}
-                    icon={action.icon}
-                    title={action.title}
-                    subtext={action.subtext}
-                    statusText={action.status}
-                    statusColor={colorMap[action.status_color] || '#3B82F6'}
-                    color={action.color_hex}
-                    isLast={idx === data.actions.length - 1}
-                    showSchedule={action.is_actionable}
-                  />
-                );
-              })}
-            </View>
+
+            {newPlans.length > 0 && (
+              <>
+                <Text style={styles.groupHeader}>NEW PLANS AND CURRENT PROGRESS</Text>
+                <View style={styles.card}>
+                  {newPlans.map((action, idx) => (
+                    <ActionCard 
+                      key={action.id}
+                      id={action.id}
+                      icon={action.icon}
+                      title={action.title}
+                      subtext={action.subtext}
+                      statusText={action.status}
+                      statusColor={action.color_hex}
+                      color={action.color_hex}
+                      isLast={idx === newPlans.length - 1}
+                      showSchedule={action.is_actionable}
+                    />
+                  ))}
+                </View>
+              </>
+            )}
+
+            {currentPlans.length > 0 && (
+              <>
+                <Text style={styles.groupHeader}>CURRENT PLANS</Text>
+                <View style={styles.card}>
+                  {currentPlans.map((action, idx) => (
+                    <ActionCard 
+                      key={action.id}
+                      id={action.id}
+                      icon={action.icon}
+                      title={action.title}
+                      subtext={action.subtext}
+                      statusText={action.status}
+                      statusColor={action.color_hex}
+                      color={action.color_hex}
+                      isLast={idx === currentPlans.length - 1}
+                      showSchedule={action.is_actionable}
+                    />
+                  ))}
+                </View>
+              </>
+            )}
 
             {/* Section 3: AI Behavior Insight */}
             <View style={styles.card}>
@@ -524,7 +575,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 100, // Account for bottom tab
+    paddingBottom: 20,
   },
   topInfoRow: {
     flexDirection: 'row',
@@ -649,6 +700,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#0F172A',
+  },
+  groupHeader: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#64748B',
+    marginBottom: 10,
+    marginTop: 10,
+    letterSpacing: 0.5,
   },
   linkText: {
     color: '#2563EB',

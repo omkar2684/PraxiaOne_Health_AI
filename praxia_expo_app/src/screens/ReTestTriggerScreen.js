@@ -2,17 +2,20 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Platform, StatusBar, Alert } from 'react-native';
 import { Feather, MaterialIcons } from '@expo/vector-icons';
 import { AppColors } from '../constants/theme';
+import AppSidebarWrapper from '../components/AppSidebarWrapper';
 
 export default function ReTestTriggerScreen({ navigation }) {
+  const sidebarRef = React.useRef(null);
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Feather name="chevron-left" size={28} color={AppColors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Re-Test Trigger</Text>
-        <View style={{ width: 28 }} />
-      </View>
+    <AppSidebarWrapper ref={sidebarRef} navigation={navigation}>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => sidebarRef.current?.toggleDrawer()} style={styles.backButton}>
+            <MaterialIcons name="menu" size={24} color="#1D3B5A" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Re-Test Trigger</Text>
+          <View style={{ width: 28 }} />
+        </View>
 
       <View style={styles.content}>
         <View style={styles.centerSection}>
@@ -42,7 +45,8 @@ export default function ReTestTriggerScreen({ navigation }) {
           <Text style={styles.primaryButtonText}>Book Follow-Up Test</Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </AppSidebarWrapper>
   );
 }
 

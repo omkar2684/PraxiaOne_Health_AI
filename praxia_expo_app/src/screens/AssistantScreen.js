@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, Modal } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, FontAwesome } from '@expo/vector-icons';
 import { AppColors } from '../constants/theme';
@@ -14,11 +14,45 @@ export default function AssistantScreen({ navigation }) {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [showMultiModel, setShowMultiModel] = useState(null);
+  const [previousUploads, setPreviousUploads] = useState([]);
+  const [showDropdown, setShowDropdown] = useState(false);
   const sidebarRef = useRef(null);
 
   useEffect(() => {
     loadHistory();
+    loadPreviousUploads();
   }, []);
+
+  const loadPreviousUploads = async () => {
+    try {
+      const saved = await AsyncStorage.getItem('previous_uploads');
+      if (saved) setPreviousUploads(JSON.parse(saved));
+    } catch (e) {}
+  };
+
+  const saveUpload = async (name, uri) => {
+    try {
+      const saved = await AsyncStorage.getItem('previous_uploads');
+      let list = saved ? JSON.parse(saved) : [];
+      if (!list.find(u => u.uri === uri)) {
+        list.push({ name, uri });
+        await AsyncStorage.setItem('previous_uploads', JSON.stringify(list));
+        setPreviousUploads(list);
+      }
+    } catch (e) {}
+  };
+
+  const handlePreviousSelect = async (file) => {
+    setShowDropdown(false);
+    setIsLoading(true);
+    const response = await ApiService.uploadDocument(file.uri, 'AI Chat Upload', file.name);
+    setIsLoading(false);
+    if (response.success && response.data && response.data.id) {
+      setSelectedDoc({ id: response.data.id, name: file.name });
+    } else {
+      Alert.alert("Error", "Could not attach the previous document.");
+    }
+  };
 
   const loadHistory = async () => {
     setIsLoading(true);
@@ -51,6 +85,7 @@ export default function AssistantScreen({ navigation }) {
 
       if (response.success && response.data && response.data.id) {
         setSelectedDoc({ id: response.data.id, name: fileName });
+        await saveUpload(fileName, fileUri);
         Alert.alert("Document Attached", `${fileName} is ready to be analyzed by the AI.`);
       } else {
         Alert.alert("Upload Failed", "Could not upload the document to the AI.");
@@ -160,6 +195,16 @@ export default function AssistantScreen({ navigation }) {
             </View>
           )}
 
+          {previousUploads.length > 0 && !selectedDoc && (
+            <TouchableOpacity 
+              style={styles.dropdownToggle}
+              onPress={() => setShowDropdown(true)}
+            >
+              <MaterialIcons name="history" size={18} color="#64748B" />
+              <Text style={styles.dropdownToggleText}>Use previous PDF</Text>
+            </TouchableOpacity>
+          )}
+
           <View style={styles.inputArea}>
             <TouchableOpacity style={styles.plusButton} onPress={handlePickDocument}>
               <MaterialIcons name="add-circle-outline" size={28} color={AppColors.primary} />
@@ -176,6 +221,38 @@ export default function AssistantScreen({ navigation }) {
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
+
+        <Modal
+          visible={showDropdown}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowDropdown(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Previous Uploads</Text>
+                <TouchableOpacity onPress={() => setShowDropdown(false)}>
+                  <MaterialIcons name="close" size={24} color="#1D3B5A" />
+                </TouchableOpacity>
+              </View>
+              <FlatList
+                data={previousUploads}
+                keyExtractor={(item) => item.uri}
+                renderItem={({ item }) => (
+                  <TouchableOpacity 
+                    style={styles.dropdownItem}
+                    onPress={() => handlePreviousSelect(item)}
+                  >
+                    <MaterialIcons name="picture-as-pdf" size={24} color="#EF4444" />
+                    <Text style={styles.dropdownItemText} numberOfLines={1}>{item.name}</Text>
+                    <MaterialIcons name="chevron-right" size={24} color="#CBD5E1" />
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+          </View>
+        </Modal>
 
         {showMultiModel && (
           <View style={styles.multiModelOverlay}>
@@ -226,4 +303,10 @@ const styles = StyleSheet.create({
   multiModelModal: { backgroundColor: 'white', borderTopLeftRadius: 20, borderTopRightRadius: 20, height: '80%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#1D3B5A' },
+  dropdownToggle: { flexDirection: 'row', backgroundColor: '#F1F5F9', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, alignItems: 'center', marginHorizontal: 15, marginBottom: 10, alignSelf: 'flex-start', borderWidth: 1, borderColor: '#E2E8F0' },
+  dropdownToggleText: { color: '#475569', fontSize: 12, marginLeft: 6, fontWeight: '600' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40, maxHeight: '60%' },
+  dropdownItem: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#F8FAFC' },
+  dropdownItemText: { flex: 1, fontSize: 14, color: '#1D3B5A', marginLeft: 12, fontWeight: '500' }
 });
