@@ -7,6 +7,10 @@ import '../../core/app_theme.dart';
 import '../../lab_ai/lab_models.dart';
 import '../../lab_ai/lab_api_service.dart';
 import 'ai_insights_screen.dart';
+import '../widgets/app_drawer.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:file_picker/file_picker.dart';
 
 // Default biomarker panel — matches the backend test payload.
 const _defaultBiomarkers = [
@@ -47,28 +51,77 @@ class LabResultsScreen extends StatefulWidget {
 
 class _LabResultsScreenState extends State<LabResultsScreen> {
   bool _isLoading = false;
+  List<Map<String, String>> _previousUploads = [];
+  LabInsightsResponse? _cachedResponse;
 
-  Future<void> _onViewInsights() async {
+  @override
+  void initState() {
+    super.initState();
+    _loadCache();
+    _loadPreviousUploads();
+  }
+
+  Future<void> _loadCache() async {
+    final sp = await SharedPreferences.getInstance();
+    final cached = sp.getString('cached_lab_insights');
+    if (cached != null) {
+      setState(() {
+        _cachedResponse = LabInsightsResponse.fromJson(jsonDecode(cached));
+      });
+    }
+  }
+
+  Future<void> _loadPreviousUploads() async {
+    final sp = await SharedPreferences.getInstance();
+    final List<String> saved = sp.getStringList('previous_uploads') ?? [];
+    setState(() {
+      _previousUploads = saved.map((s) {
+        final parts = s.split('|');
+        return {'name': parts[0], 'path': parts[1]};
+      }).toList();
+    });
+  }
+
+  Future<void> _saveCache(LabInsightsResponse response) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString('cached_lab_insights', jsonEncode(response.toJson()));
+    setState(() => _cachedResponse = response);
+  }
+
+  Future<void> _onViewInsights({bool force = false}) async {
+    if (!force && _cachedResponse != null) {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => AIInsightsScreen(response: _cachedResponse!)));
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
       final response = await LabApiService.getInsights(_defaultBiomarkers);
       if (!mounted) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => AIInsightsScreen(response: response),
-        ),
-      );
+      await _saveCache(response);
+      Navigator.push(context, MaterialPageRoute(builder: (_) => AIInsightsScreen(response: response)));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('AI Error: $e'),
-          backgroundColor: Colors.red.shade700,
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('AI Error: $e'), backgroundColor: Colors.red.shade700));
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _uploadNewPDF() async {
+    FilePickerResult? result = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['pdf']);
+    if (result != null && result.files.single.path != null) {
+      final path = result.files.single.path!;
+      final name = result.files.single.name;
+      final sp = await SharedPreferences.getInstance();
+      List<String> saved = sp.getStringList('previous_uploads') ?? [];
+      final entry = '$name|$path';
+      if (!saved.contains(entry)) {
+        saved.add(entry);
+        await sp.setStringList('previous_uploads', saved);
+        _loadPreviousUploads();
+      }
+      _onViewInsights(force: true); // Trigger AI analysis for new file
     }
   }
 
@@ -79,10 +132,11 @@ class _LabResultsScreenState extends State<LabResultsScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: Color(0xFF1D3B5A), size: 20),
-          onPressed: () => Navigator.pop(context),
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu, color: Color(0xFF1D3B5A)),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
         ),
         title: const Text(
           'Lab Results',
@@ -93,7 +147,16 @@ class _LabResultsScreenState extends State<LabResultsScreen> {
           ),
         ),
         centerTitle: false,
+        actions: [
+          if (_cachedResponse != null)
+            IconButton(
+              icon: const Icon(Icons.refresh_rounded, color: Color(0xFF1D3B5A)),
+              tooltip: 'Refresh AI Insights',
+              onPressed: () => _onViewInsights(force: true),
+            ),
+        ],
       ),
+      drawer: const AppDrawer(),
       body: SafeArea(
         child: Column(
           children: [
@@ -144,7 +207,43 @@ class _LabResultsScreenState extends State<LabResultsScreen> {
               ),
             ),
 
-            // ── Biomarker list ──────────────────────────────────────────
+            // ── Previous PDF Dropdown ──────────────────────────────────
+            if (_previousUploads.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<Map<String, String>>(
+                      isExpanded: true,
+                      hint: const Text("Choose previous lab PDF", style: TextStyle(fontSize: 13)),
+                      items: _previousUploads.map((file) => DropdownMenuItem(
+                        value: file,
+                        child: Text(file['name']!, style: const TextStyle(fontSize: 13, overflow: TextOverflow.ellipsis)),
+                      )).toList(),
+                      onChanged: (val) {
+                        if (val != null) _onViewInsights(force: true); // Trigger re-analysis
+                      },
+                    ),
+                  ),
+                ),
+              ),
+
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: OutlinedButton.icon(
+                onPressed: _uploadNewPDF,
+                icon: const Icon(Icons.upload_file_rounded, size: 18),
+                label: const Text("Upload New Lab PDF"),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 44),
+                  side: BorderSide(color: Colors.blue.shade200),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),

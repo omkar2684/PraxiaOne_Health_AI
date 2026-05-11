@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 're_test_trigger_screen.dart';
+import '../widgets/app_drawer.dart';
 
 class OutcomeSignalScreen extends StatelessWidget {
   const OutcomeSignalScreen({Key? key}) : super(key: key);
@@ -12,8 +13,14 @@ class OutcomeSignalScreen extends StatelessWidget {
         title: const Text('Outcome Signal', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black87),
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu, color: Color(0xFF1D3B5A)),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
       ),
+      drawer: const AppDrawer(),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -50,11 +57,11 @@ class OutcomeSignalScreen extends StatelessWidget {
               const Text('(Compared to last week)', style: TextStyle(fontSize: 13, color: Color(0xFF64748B))),
               const SizedBox(height: 24),
 
-              _buildSignalRow('Activity', '+22%', Colors.green.shade600),
+              _buildSignalRow('Hemoglobin', '-5.2%', Colors.red.shade600, '13.5 - 17.5 g/dL'),
               const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Divider()),
-              _buildSignalRow('Sleep', '+15%', Colors.green.shade600),
+              _buildSignalRow('HbA1c', '-0.4%', Colors.green.shade600, '4.0 - 5.6 %'),
               const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Divider()),
-              _buildSignalRow('Sugar Intake', '-18%', Colors.blue.shade600),
+              _buildSignalRow('LDL Cholesterol', '-12%', Colors.green.shade600, '< 100 mg/dL'),
 
               const Spacer(),
               Container(
@@ -62,7 +69,7 @@ class OutcomeSignalScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(12)),
                 child: const Text(
-                  'Great job! Consistency is key.',
+                  'Great job! Your biomarkers are moving towards normal ranges.',
                   style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF475569)),
                   textAlign: TextAlign.center,
                 ),
@@ -86,12 +93,19 @@ class OutcomeSignalScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSignalRow(String label, String value, Color valueColor) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildSignalRow(String label, String value, Color valueColor, String normalRange) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
-        Text(value, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: valueColor)),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+            Text(value, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: valueColor)),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text('Normal Range: $normalRange', style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w500)),
       ],
     );
   }

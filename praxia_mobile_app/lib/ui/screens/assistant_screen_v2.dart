@@ -7,6 +7,7 @@ import '../../api_service.dart';
 import '../../core/app_theme.dart';
 import '../widgets/app_drawer.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 class AssistantScreenV2 extends StatefulWidget {
@@ -22,6 +23,46 @@ class _AssistantScreenV2State extends State<AssistantScreenV2> {
   final ScrollController _scrollController = ScrollController();
   final AudioPlayer _audioPlayer = AudioPlayer();
   PlatformFile? _selectedFile;
+  List<Map<String, String>> _previousUploads = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreviousUploads();
+  }
+
+  Future<void> _loadPreviousUploads() async {
+    final sp = await SharedPreferences.getInstance();
+    final List<String> saved = sp.getStringList('previous_uploads') ?? [];
+    setState(() {
+      _previousUploads = saved.map((s) {
+        final parts = s.split('|');
+        return {'name': parts[0], 'path': parts[1]};
+      }).toList();
+    });
+  }
+
+  Future<void> _saveUpload(String name, String path) async {
+    final sp = await SharedPreferences.getInstance();
+    List<String> saved = sp.getStringList('previous_uploads') ?? [];
+    final entry = '$name|$path';
+    if (!saved.contains(entry)) {
+      saved.add(entry);
+      await sp.setStringList('previous_uploads', saved);
+      _loadPreviousUploads();
+    }
+  }
+
+  void _selectPreviousFile(Map<String, String> file) {
+    setState(() {
+      _selectedFile = PlatformFile(
+        name: file['name']!,
+        path: file['path']!,
+        size: 0,
+        bytes: null,
+      );
+    });
+  }
 
   @override
   void dispose() {
@@ -79,6 +120,7 @@ class _AssistantScreenV2State extends State<AssistantScreenV2> {
       if (uploadRes.containsKey('id')) {
         attachedDocId = uploadRes['id'];
         finalMessage += (finalMessage.isEmpty ? "" : "\n\n") + "*(Attached file: ${fileToSend.name})*";
+        await _saveUpload(fileToSend.name, fileToSend.path!);
       }
     }
 
@@ -165,6 +207,27 @@ class _AssistantScreenV2State extends State<AssistantScreenV2> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (_previousUploads.isNotEmpty && _selectedFile == null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(10)),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<Map<String, String>>(
+                    isExpanded: true,
+                    hint: const Text("Use previous PDF", style: TextStyle(fontSize: 12)),
+                    items: _previousUploads.map((file) => DropdownMenuItem(
+                      value: file,
+                      child: Text(file['name']!, style: const TextStyle(fontSize: 12, overflow: TextOverflow.ellipsis)),
+                    )).toList(),
+                    onChanged: (val) {
+                      if (val != null) _selectPreviousFile(val);
+                    },
+                  ),
+                ),
+              ),
+            ),
           if (_selectedFile != null && _selectedFile!.path != null)
             Container(
               margin: const EdgeInsets.only(bottom: 8),

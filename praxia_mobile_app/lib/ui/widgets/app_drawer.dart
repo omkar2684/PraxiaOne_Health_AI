@@ -14,6 +14,8 @@ import '../screens/welcome_screen_v2.dart';
 import '../screens/assistant_screen_v2.dart';
 import '../screens/chat_list_screen.dart';
 import '../screens/track_progress_screen.dart';
+import '../screens/action_plan_screen.dart';
+import '../../lab_ai/lab_models.dart';
 
 class AppDrawer extends StatefulWidget {
   const AppDrawer({Key? key}) : super(key: key);
@@ -112,11 +114,11 @@ class _AppDrawerState extends State<AppDrawer> {
                   _DrawerItem(Icons.health_and_safety_outlined, '3. Health Intelligence', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => HealthScoreScreen()))),
                   _DrawerItem(Icons.chat_bubble_outline, '4. AI Assistance', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => AssistantScreenV2()))),
                   _DrawerItem(Icons.auto_graph_outlined, '5. Prediction', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => ForecastScreen()))),
-                  _DrawerItem(Icons.check_circle_outline, '6. Recommendation', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => RecommendationScreen()))),
-                  _DrawerItem(Icons.healing_outlined, '7. Escalation', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => DoctorScreen()))),
-                  _DrawerItem(Icons.map_outlined, '8. Journey Flow', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const JourneyFlowScreen()))),
-                  _DrawerItem(Icons.trending_up, 'Track Progress', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const TrackProgressScreen()))),
-                  _DrawerItem(Icons.message_outlined, 'Message Portal', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ChatListScreen()))),
+                  _DrawerItem(Icons.check_circle_outline, '6. Recommendation', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => ActionPlanScreen(response: LabInsightsResponse(insights: [], actionPlan: []))))),
+                  _DrawerItem(Icons.trending_up, '7. Track Progress', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const TrackProgressScreen()))),
+                  _DrawerItem(Icons.healing_outlined, '8. Escalation', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => DoctorScreen()))),
+                  _DrawerItem(Icons.message_outlined, '9. Message Portal', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ChatListScreen()))),
+                  _DrawerItem(Icons.map_outlined, '10. Journey Flow', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const JourneyFlowScreen()))),
                   
                   const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Divider(height: 1)),
                   const Padding(padding: EdgeInsets.only(left: 12, bottom: 8), child: Text('ACCOUNT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.2))),

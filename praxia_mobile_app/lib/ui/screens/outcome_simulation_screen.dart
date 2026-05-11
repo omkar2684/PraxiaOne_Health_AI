@@ -1,14 +1,68 @@
 import 'package:flutter/material.dart';
 import 'outcome_signal_screen.dart';
+import '../widgets/app_drawer.dart';
 
-class OutcomeSimulationScreen extends StatelessWidget {
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+
+class OutcomeSimulationScreen extends StatefulWidget {
   final Map<String, dynamic> projection;
 
   const OutcomeSimulationScreen({Key? key, required this.projection}) : super(key: key);
 
   @override
+  State<OutcomeSimulationScreen> createState() => _OutcomeSimulationScreenState();
+}
+
+class _OutcomeSimulationScreenState extends State<OutcomeSimulationScreen> {
+  Map<String, dynamic>? _projection;
+  bool _isLoadingCache = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.projection.isEmpty) {
+      _loadCache();
+    } else {
+      _projection = Map.from(widget.projection);
+      _saveCache(widget.projection);
+    }
+  }
+
+  Future<void> _loadCache() async {
+    setState(() => _isLoadingCache = true);
+    final sp = await SharedPreferences.getInstance();
+    final cached = sp.getString('cached_lab_insights');
+    if (cached != null) {
+      final decoded = jsonDecode(cached);
+      setState(() {
+        _projection = decoded['projection'];
+        _isLoadingCache = false;
+      });
+    } else {
+      setState(() {
+        _projection = {};
+        _isLoadingCache = false;
+      });
+    }
+  }
+
+  Future<void> _saveCache(Map<String, dynamic> proj) async {
+    final sp = await SharedPreferences.getInstance();
+    final cached = sp.getString('cached_lab_insights');
+    if (cached != null) {
+      final decoded = Map<String, dynamic>.from(jsonDecode(cached));
+      decoded['projection'] = proj;
+      await sp.setString('cached_lab_insights', jsonEncode(decoded));
+    } else {
+      await sp.setString('cached_lab_insights', jsonEncode({'projection': proj}));
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final biomarkers = projection['biomarkers'] as List? ?? [];
+    if (_isLoadingCache) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    final biomarkers = (_projection?['biomarkers'] as List?) ?? [];
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -16,8 +70,20 @@ class OutcomeSimulationScreen extends StatelessWidget {
         title: const Text('Outcome Simulation', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black87),
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu, color: Color(0xFF1D3B5A)),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded, color: Colors.black87),
+            onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
+          ),
+        ],
       ),
+      drawer: const AppDrawer(),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -81,7 +147,7 @@ class OutcomeSimulationScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(12)),
                 child: Text(
-                  projection['subtext'] ?? 'Projections are personalized estimates based on your current data, plan and adherence.',
+                  _projection?['subtext'] ?? 'Projections are personalized estimates based on your current data, plan and adherence.',
                   style: const TextStyle(fontSize: 12, color: Color(0xFF475569)),
                   textAlign: TextAlign.center,
                 ),

@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../lab_ai/lab_models.dart';
 import 'track_progress_screen.dart';
+import 'dart:convert';
+import '../widgets/app_drawer.dart';
 
 class ActionPlanScreen extends StatefulWidget {
   final LabInsightsResponse response;
@@ -19,11 +21,41 @@ class ActionPlanScreen extends StatefulWidget {
 
 class _ActionPlanScreenState extends State<ActionPlanScreen> {
   late List<ActionPlanItem> _actions;
+  bool _isLoadingCache = false;
 
   @override
   void initState() {
     super.initState();
-    _actions = List.from(widget.response.actionPlan);
+    if (widget.response.actionPlan.isEmpty) {
+      _loadCache();
+    } else {
+      _actions = List.from(widget.response.actionPlan);
+      _saveCache(widget.response);
+    }
+  }
+
+  Future<void> _loadCache() async {
+    setState(() => _isLoadingCache = true);
+    final sp = await SharedPreferences.getInstance();
+    final cached = sp.getString('cached_lab_insights');
+    if (cached != null) {
+      final decoded = jsonDecode(cached);
+      final response = LabInsightsResponse.fromJson(decoded);
+      setState(() {
+        _actions = List.from(response.actionPlan);
+        _isLoadingCache = false;
+      });
+    } else {
+      setState(() {
+        _actions = [];
+        _isLoadingCache = false;
+      });
+    }
+  }
+
+  Future<void> _saveCache(LabInsightsResponse response) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString('cached_lab_insights', jsonEncode(response.toJson()));
   }
 
   IconData _getIconData(String sfSymbolHint) {
@@ -133,15 +165,24 @@ class _ActionPlanScreenState extends State<ActionPlanScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF2F4F7),
+      drawer: const AppDrawer(),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1D3B5A), size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
+        iconTheme: const IconThemeData(color: Color(0xFF1D3B5A)),
+        title: Image.asset('public/data_sources_screen/PraxiaOne_logo_data_sources.png', height: 36, fit: BoxFit.contain),
+        centerTitle: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: 'Regenerate Plan',
+            onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
+          ),
+        ],
       ),
-      body: SafeArea(
+      body: _isLoadingCache 
+        ? const Center(child: CircularProgressIndicator())
+        : SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -235,8 +276,10 @@ class _ActionPlanScreenState extends State<ActionPlanScreen> {
                                     if (action.id != null) {
                                       if (willBeActive) {
                                         await prefs.setBool('plan_active_${action.id}', true);
+                                        await prefs.setInt('plan_active_time_${action.id}', DateTime.now().millisecondsSinceEpoch);
                                       } else {
                                         await prefs.remove('plan_active_${action.id}');
+                                        await prefs.remove('plan_active_time_${action.id}');
                                       }
                                     }
                                     setState(() {

@@ -3,6 +3,7 @@ import '../../api_service.dart';
 import '../../core/app_theme.dart';
 import '../widgets/app_drawer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import 'outcome_simulation_screen.dart';
 
 class TrackProgressScreen extends StatefulWidget {
@@ -42,7 +43,8 @@ class _TrackProgressScreenState extends State<TrackProgressScreen> {
             'color_hex': '#3B82F6',
             'status': 'Not Started',
             'status_color': 'error',
-            'is_actionable': false
+            'is_actionable': false,
+            'activated_at': prefs.getInt('plan_active_time_${r['id']}') ?? 0,
           });
         }
       }
@@ -81,18 +83,36 @@ class _TrackProgressScreenState extends State<TrackProgressScreen> {
     }
   }
 
-  Future<void> _generateDynamicInsights() async {
+  Future<void> _generateDynamicInsights({bool force = false}) async {
     if (_data == null || _data!['actions'] == null || _data!['actions'].isEmpty) return;
     
+    final actionsJson = jsonEncode(_data!['actions']);
+    final actionsHash = actionsJson.hashCode.toString();
+    final sp = await SharedPreferences.getInstance();
+    
+    if (!force) {
+      final cachedHash = sp.getString('track_progress_actions_hash');
+      final cachedInsights = sp.getString('track_progress_insights_cache');
+      if (cachedHash == actionsHash && cachedInsights != null) {
+        setState(() {
+          _dynamicInsights = jsonDecode(cachedInsights);
+          _isGeneratingInsights = false;
+        });
+        return;
+      }
+    }
+
     setState(() => _isGeneratingInsights = true);
     final insightsData = await ApiService.getTrackProgressInsights(_data!['actions']);
     if (mounted) {
-      setState(() {
-        if (insightsData.isNotEmpty) {
+      if (insightsData.isNotEmpty) {
+        await sp.setString('track_progress_actions_hash', actionsHash);
+        await sp.setString('track_progress_insights_cache', jsonEncode(insightsData));
+        setState(() {
           _dynamicInsights = insightsData;
-        }
-        _isGeneratingInsights = false;
-      });
+        });
+      }
+      setState(() => _isGeneratingInsights = false);
     }
   }
 
@@ -285,21 +305,19 @@ class _TrackProgressScreenState extends State<TrackProgressScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text("Track Progress", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
         backgroundColor: Colors.white,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black87),
+        iconTheme: const IconThemeData(color: Color(0xFF1D3B5A)),
+        title: Image.asset('public/data_sources_screen/PraxiaOne_logo_data_sources.png', height: 36, fit: BoxFit.contain),
+        centerTitle: false,
         actions: [
           IconButton(
-            icon: Stack(
-              children: [
-                const Icon(Icons.notifications_none),
-                Positioned(
-                  right: 2, top: 2,
-                  child: Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.blue, shape: BoxShape.circle)),
-                )
-              ],
-            ),
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: 'Refresh Insights',
+            onPressed: () => _generateDynamicInsights(force: true),
+          ),
+          IconButton(
+            icon: const Icon(Icons.notifications_none),
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("No new notifications"), duration: Duration(seconds: 2)));
             },
@@ -423,7 +441,18 @@ class _TrackProgressScreenState extends State<TrackProgressScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200)),
               child: Column(
-                children: actions.asMap().entries.map((e) => _buildActionCard(e.value, e.key, e.key == actions.length - 1)).toList(),
+                children: [
+                  if (actions.any((a) => (DateTime.now().millisecondsSinceEpoch - (a['activated_at'] ?? 0)) < 120000)) ...[
+                    const Padding(padding: EdgeInsets.only(top: 16, bottom: 8), child: Text("New Plans", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue, fontSize: 14))),
+                    ...actions.asMap().entries.where((e) => (DateTime.now().millisecondsSinceEpoch - (e.value['activated_at'] ?? 0)) < 120000).map((e) => _buildActionCard(e.value, e.key, false)).toList(),
+                    const Divider(),
+                  ],
+                  if (actions.any((a) => (DateTime.now().millisecondsSinceEpoch - (a['activated_at'] ?? 0)) >= 120000)) ...[
+                    const Padding(padding: EdgeInsets.only(top: 16, bottom: 8), child: Text("Current Plans", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 14))),
+                    ...actions.asMap().entries.where((e) => (DateTime.now().millisecondsSinceEpoch - (e.value['activated_at'] ?? 0)) >= 120000).map((e) => _buildActionCard(e.value, e.key, e.key == actions.length - 1)).toList(),
+                  ] else if (actions.isEmpty) 
+                    const Padding(padding: EdgeInsets.all(20), child: Text("No active plans", style: TextStyle(color: Colors.grey)))
+                ],
               ),
             ),
             const SizedBox(height: 20),
@@ -544,7 +573,6 @@ class _TrackProgressScreenState extends State<TrackProgressScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 40),
           ],
         ),
       ),

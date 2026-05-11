@@ -6,13 +6,15 @@ class Biomarker {
   final String name;
   final double value;
   final String unit;
+  final String? normalRange;
 
-  const Biomarker({required this.name, required this.value, required this.unit});
+  const Biomarker({required this.name, required this.value, required this.unit, this.normalRange});
 
   Map<String, dynamic> toJson() => {
         'name': name,
         'value': value,
         'unit': unit,
+        'normal_range': normalRange,
       };
 }
 

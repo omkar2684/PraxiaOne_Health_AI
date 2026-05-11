@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../api_service.dart';
 import '../widgets/app_drawer.dart';
 
@@ -40,10 +41,102 @@ class _ConnectDataScreenState extends State<ConnectDataScreen> {
     },
   ];
 
+  List<Map<String, String>> _previousUploads = [];
+
   @override
   void initState() {
     super.initState();
-    // Do not load risk factors initially
+    _loadPreviousUploads();
+  }
+
+  Future<void> _loadPreviousUploads() async {
+    final prefs = await ApiService.getToken(); // Just to trigger shared_preferences check or similar
+    // Using a more direct approach with shared_preferences
+    final sp = await SharedPreferences.getInstance();
+    final List<String> saved = sp.getStringList('previous_uploads') ?? [];
+    setState(() {
+      _previousUploads = saved.map((s) {
+        final parts = s.split('|');
+        return {'name': parts[0], 'path': parts[1]};
+      }).toList();
+    });
+  }
+
+  Future<void> _saveUpload(String name, String path) async {
+    final sp = await SharedPreferences.getInstance();
+    List<String> saved = sp.getStringList('previous_uploads') ?? [];
+    final entry = '$name|$path';
+    if (!saved.contains(entry)) {
+      saved.add(entry);
+      await sp.setStringList('previous_uploads', saved);
+      _loadPreviousUploads();
+    }
+  }
+
+  Future<void> _processFile(String filePath, String fileName, String docType) async {
+    // Call AI via the backend which hits DeepSeek
+    setState(() {
+      _documentUploaded = true;
+      _isAiThinking = true;
+      _riskFactors = null;
+    });
+
+    final aiResult = await ApiService.parseLabPDF(filePath);
+    
+    if (mounted) {
+      setState(() {
+        _isAiThinking = false;
+      });
+      
+      if (aiResult.containsKey('biomarkers')) {
+        final biomarkers = aiResult['biomarkers'] as List<dynamic>;
+        if (biomarkers.isEmpty) {
+          setState(() {
+            _isStable = true;
+            _riskFactors = {
+              'factors': [
+                {'name': 'Scan Result', 'status': 'Normal'}
+              ],
+              'warning_message': 'Everything looks good! No abnormalities found.',
+              'explanation_title': 'Summary',
+              'explanation_text': 'Our AI could not find any elevated biomarkers in the uploaded document.'
+            };
+          });
+        } else {
+          final factors = biomarkers.map((b) => {
+            'name': b['name'],
+            'status': b['status'] ?? 'Normal'
+          }).toList();
+          
+          final hasAbnormal = factors.any((f) => 
+            f['status'].toString().toLowerCase() != 'normal' && 
+            f['status'].toString().toLowerCase() != 'optimal'
+          );
+          
+          setState(() {
+            _isStable = !hasAbnormal;
+            _riskFactors = {
+              'factors': factors.take(6).toList(),
+              'warning_message': hasAbnormal 
+                  ? 'Our AI detected some abnormal biomarkers in your document.' 
+                  : 'Everything looks optimal according to our AI analysis.',
+              'explanation_title': 'DeepSeek Analysis Complete',
+              'explanation_text': 'DeepSeek processed your document and extracted the key data points above. ${hasAbnormal ? 'We recommend discussing these with your provider.' : 'Keep up the healthy habits!'}'
+            };
+          });
+        }
+      } else {
+         setState(() {
+           _isStable = false;
+           _riskFactors = {
+             'factors': [],
+             'warning_message': 'Error analyzing document with AI',
+             'explanation_title': 'Analysis Failed',
+             'explanation_text': aiResult['error'] ?? 'Unknown error'
+           };
+         });
+      }
+    }
   }
 
   Future<void> _uploadDocument(String docType) async {
@@ -73,72 +166,8 @@ class _ConnectDataScreenState extends State<ConnectDataScreen> {
                 backgroundColor: Colors.green,
               ),
             );
-            
-            // After successful upload, drop down the data synthesis
-            setState(() {
-              _documentUploaded = true;
-              _isAiThinking = true;
-              _riskFactors = null;
-            });
-            
-            // Call AI via the backend which hits DeepSeek
-            final aiResult = await ApiService.parseLabPDF(filePath);
-            
-            if (mounted) {
-              setState(() {
-                _isAiThinking = false;
-              });
-              
-              if (aiResult.containsKey('biomarkers')) {
-                final biomarkers = aiResult['biomarkers'] as List<dynamic>;
-                if (biomarkers.isEmpty) {
-                  setState(() {
-                    _isStable = true;
-                    _riskFactors = {
-                      'factors': [
-                        {'name': 'Scan Result', 'status': 'Normal'}
-                      ],
-                      'warning_message': 'Everything looks good! No abnormalities found.',
-                      'explanation_title': 'Summary',
-                      'explanation_text': 'Our AI could not find any elevated biomarkers in the uploaded document.'
-                    };
-                  });
-                } else {
-                  final factors = biomarkers.map((b) => {
-                    'name': b['name'],
-                    'status': b['status'] ?? 'Normal'
-                  }).toList();
-                  
-                  final hasAbnormal = factors.any((f) => 
-                    f['status'].toString().toLowerCase() != 'normal' && 
-                    f['status'].toString().toLowerCase() != 'optimal'
-                  );
-                  
-                  setState(() {
-                    _isStable = !hasAbnormal;
-                    _riskFactors = {
-                      'factors': factors.take(6).toList(),
-                      'warning_message': hasAbnormal 
-                          ? 'Our AI detected some abnormal biomarkers in your document.' 
-                          : 'Everything looks optimal according to our AI analysis.',
-                      'explanation_title': 'DeepSeek Analysis Complete',
-                      'explanation_text': 'DeepSeek processed your document and extracted the key data points above. ${hasAbnormal ? 'We recommend discussing these with your provider.' : 'Keep up the healthy habits!'}'
-                    };
-                  });
-                }
-              } else {
-                 setState(() {
-                   _isStable = false;
-                   _riskFactors = {
-                     'factors': [],
-                     'warning_message': 'Error analyzing document with AI',
-                     'explanation_title': 'Analysis Failed',
-                     'explanation_text': aiResult['error'] ?? 'Unknown error'
-                   };
-                 });
-              }
-            }
-
+            await _saveUpload(fileName, filePath);
+            await _processFile(filePath, fileName, docType);
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -184,6 +213,27 @@ class _ConnectDataScreenState extends State<ConnectDataScreen> {
                         padding: EdgeInsets.symmetric(vertical: 16, horizontal: 45),
                         child: Text('DOCUMENT UPLOADS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.2)),
                       ),
+                      if (_previousUploads.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 45, vertical: 8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<Map<String, String>>(
+                                isExpanded: true,
+                                hint: const Text("Choose previously uploaded PDF", style: TextStyle(fontSize: 12)),
+                                items: _previousUploads.map((file) => DropdownMenuItem(
+                                  value: file,
+                                  child: Text(file['name']!, style: const TextStyle(fontSize: 12, overflow: TextOverflow.ellipsis)),
+                                )).toList(),
+                                onChanged: (val) {
+                                  if (val != null) _processFile(val['path']!, val['name']!, 'Previously Uploaded');
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
                       ...staticItems.asMap().entries.map((entry) => _buildItemCard(entry.value, entry.key, staticItems.length)).toList(),
 
                       if (_documentUploaded && _isAiThinking) _buildAiThinkingCard(),
