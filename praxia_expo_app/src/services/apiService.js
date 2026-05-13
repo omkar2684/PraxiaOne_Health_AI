@@ -17,6 +17,9 @@ export const ApiService = {
       if (response.ok) {
         const data = await response.json();
         await AsyncStorage.setItem('token', data.access);
+        if (data.refresh) {
+          await AsyncStorage.setItem('refresh_token', data.refresh);
+        }
         await AsyncStorage.setItem('username', username);
         return { success: true };
       } else {
@@ -27,6 +30,34 @@ export const ApiService = {
       await AsyncStorage.setItem('username', username);
       return { success: true, dummy: true };
     }
+  },
+
+  logout: async () => {
+    await AsyncStorage.removeItem('token');
+    await AsyncStorage.removeItem('refresh_token');
+    await AsyncStorage.removeItem('username');
+    // Clear other caches if necessary
+    await AsyncStorage.removeItem('cached_track_data');
+    await AsyncStorage.removeItem('cached_track_insights');
+    return true;
+  },
+
+  refreshToken: async () => {
+    try {
+      const refresh = await AsyncStorage.getItem('refresh_token');
+      if (!refresh) return false;
+      const response = await fetch(`${baseUrl}/auth/token/refresh/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        await AsyncStorage.setItem('token', data.access);
+        return true;
+      }
+    } catch (e) {}
+    return false;
   },
 
   register: async (userData) => {
@@ -299,14 +330,27 @@ export const ApiService = {
       });
 
       console.log(`Uploading ${fileName} to backend...`);
-      const response = await fetch(`${baseUrl}/documents/`, {
+      let response = await fetch(`${baseUrl}/documents/`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
-          // Don't set Content-Type header manually when using FormData in fetch, React Native handles the boundary
         },
         body: formData,
       });
+
+      if (response.status === 401) {
+        const refreshed = await ApiService.refreshToken();
+        if (refreshed) {
+          token = await AsyncStorage.getItem('token');
+          response = await fetch(`${baseUrl}/documents/`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+            body: formData,
+          });
+        }
+      }
 
       if (response.ok || response.status === 201) {
         const data = await response.json();
@@ -363,15 +407,24 @@ export const ApiService = {
       return {
         success: true,
         data: [
-          { name: 'LDL Cholesterol', old_value: '130 mg/dL', new_value: '115 mg/dL', delta: '11.5% Drop', improved: true },
-          { name: 'Fasting Glucose', old_value: '105 mg/dL', new_value: '98 mg/dL', delta: '6.6% Drop', improved: true }
+          { name: 'Hemoglobin', old_value: '13.5 g/dL', new_value: '11.6 g/dL', delta: '13.8% Drop', improved: true, normal_range: '12.0 - 15.0' },
+          { name: 'WBC', old_value: '6.5 x10³/uL', new_value: '6.0 x10³/uL', delta: '7.7% Drop', improved: true, normal_range: '4.5 - 11.0' },
+          { name: 'eGFR', old_value: '92.0 mL/min', new_value: '85.4 mL/min', delta: '7.2% Drop', improved: false, normal_range: '>60' },
+          { name: 'Creatinine', old_value: '0.9 mg/dL', new_value: '0.8 mg/dL', delta: '6.0% Drop', improved: true, normal_range: '0.6 - 1.2' },
+          { name: 'AST (Liver)', old_value: '45.0 U/L', new_value: '39.7 U/L', delta: '11.9% Drop', improved: true, normal_range: '10 - 40' },
+          { name: 'ALT (Liver)', old_value: '52.0 U/L', new_value: '47.1 U/L', delta: '9.5% Drop', improved: true, normal_range: '7 - 56' },
+          { name: 'Triglycerides', old_value: '220.0 mg/dL', new_value: '203.2 mg/dL', delta: '7.6% Drop', improved: true, normal_range: '<150' },
+          { name: 'HDL Cholesterol', old_value: '34.0 mg/dL', new_value: '31.9 mg/dL', delta: '6.3% Drop', improved: false, normal_range: '>40' },
+          { name: 'LDL Cholesterol', old_value: '155.0 mg/dL', new_value: '133.0 mg/dL', delta: '14.2% Drop', improved: true, normal_range: '<100' },
+          { name: 'HbA1c', old_value: '8.4 %', new_value: '7.8 %', delta: '7.3% Drop', improved: true, normal_range: '4.0 - 5.6' },
+          { name: 'Glucose', old_value: '168.0 mg/dL', new_value: '148.5 mg/dL', delta: '11.6% Drop', improved: true, normal_range: '70 - 99' }
         ]
       };
     }
   },
 
   uploadLabReportPDF: async (fileUri, fileName = 'lab_report.pdf') => {
-    const token = await AsyncStorage.getItem('token');
+    let token = await AsyncStorage.getItem('token');
     try {
       const formData = new FormData();
       formData.append('file', {
@@ -379,11 +432,25 @@ export const ApiService = {
         name: fileName,
         type: 'application/pdf',
       });
-      const response = await fetch(`${baseUrl}/parse-pdf/`, {
+      
+      let response = await fetch(`${baseUrl}/parse-pdf/`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
+
+      if (response.status === 401) {
+        const refreshed = await ApiService.refreshToken();
+        if (refreshed) {
+          token = await AsyncStorage.getItem('token');
+          response = await fetch(`${baseUrl}/parse-pdf/`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+            body: formData,
+          });
+        }
+      }
+
       if (response.ok) {
         const data = await response.json();
         return { success: true, biomarkers: data.biomarkers || [] };
@@ -436,6 +503,42 @@ export const ApiService = {
         { title: "Reduce added sugar", description: "Limit to <25g per day. Improves glucose & cholesterol.", icon: "no-food" },
         { title: "Take Vitamin D3", description: "2,000 IU daily with food. Supports immunity.", icon: "medical-services" }
       ]
+    };
+  },
+
+  getOutcomeSimulation: async () => {
+    const token = await AsyncStorage.getItem('token');
+    try {
+      const response = await fetch(`${baseUrl}/outcome-simulation/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) return await response.json();
+    } catch (e) {}
+    // Fallback Mock Data
+    return {
+      "projections": {
+        "two_weeks": {
+          "text": "Your glucose levels are projected to stabilize within the next 2 weeks if you continue your current walking habit.",
+          "subtext": "Stability: High",
+          "biomarkers": [
+            { "name": "Glucose", "from_to": "110 -> 98", "improvement": "11%", "trend": "down" },
+            { "name": "Sleep Efficiency", "from_to": "78% -> 85%", "improvement": "7%", "trend": "up" }
+          ]
+        },
+        "one_month": {
+          "text": "In 30 days, your LDL levels could drop by up to 15% with consistent dietary changes.",
+          "subtext": "Confidence: 85%",
+          "biomarkers": [
+            { "name": "LDL", "from_to": "135 -> 115", "improvement": "15%", "trend": "down" },
+            { "name": "Weight", "from_to": "185 -> 180 lbs", "improvement": "5 lbs", "trend": "down" }
+          ]
+        }
+      },
+      "causality_analysis": [
+        { "rank": 1, "action_name": "Evening Walk", "benefit": "Directly correlates with 12mg/dL reduction in morning glucose." },
+        { "rank": 2, "action_name": "Fiber Intake", "benefit": "Correlates with improved digestion and stable energy levels." }
+      ],
+      "signals": ["Improvement detected in post-prandial glucose", "Sleep latency reduced"]
     };
   }
 };

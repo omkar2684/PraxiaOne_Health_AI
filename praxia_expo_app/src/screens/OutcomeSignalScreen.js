@@ -1,15 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Platform, StatusBar, ActivityIndicator, Alert } from 'react-native';
 import { Feather, MaterialIcons } from '@expo/vector-icons';
 import { AppColors } from '../constants/theme';
 import * as DocumentPicker from 'expo-document-picker';
 import { ApiService } from '../services/apiService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppSidebarWrapper from '../components/AppSidebarWrapper';
 
 export default function OutcomeSignalScreen({ route, navigation }) {
   const sidebarRef = React.useRef(null);
   const [uploading, setUploading] = useState(false);
   const [comparison, setComparison] = useState(null);
+
+  useEffect(() => {
+    loadCache();
+  }, []);
+
+  const loadCache = async () => {
+    try {
+      const cached = await AsyncStorage.getItem('cached_outcome_comparison');
+      if (cached) {
+        setComparison(JSON.parse(cached));
+      }
+    } catch (e) {}
+  };
 
   const handleUpload = async () => {
     try {
@@ -33,6 +47,7 @@ export default function OutcomeSignalScreen({ route, navigation }) {
         const compRes = await ApiService.compareLabReport(fileUri, fileName);
         if (compRes.success) {
           setComparison(compRes.data);
+          await AsyncStorage.setItem('cached_outcome_comparison', JSON.stringify(compRes.data));
           Alert.alert("Analysis Complete", "We have compared your new results with your previous baseline.");
         } else {
           Alert.alert("Comparison Failed", "Could not analyze the document.");
@@ -85,21 +100,18 @@ export default function OutcomeSignalScreen({ route, navigation }) {
             <Text style={styles.comparisonTitle}>Latest Results Comparison</Text>
             {comparison.map((item, idx) => (
               <View key={idx} style={styles.comparisonRow}>
-                <Text style={styles.compLabel}>{item.name}</Text>
+                <Text style={styles.compLabel}>{item.name}{item.normal_range ? `\n(${item.normal_range})` : ''}</Text>
                 <View style={styles.compValues}>
                   <Text style={styles.compOld}>{item.old_value}</Text>
                   <MaterialIcons name="arrow-right-alt" size={16} color="#94A3B8" style={{marginHorizontal: 4}} />
                   <Text style={styles.compNew}>{item.new_value}</Text>
                 </View>
-                {item.normal_range && (
-                  <View style={styles.normalRangeBox}>
-                    <Text style={styles.normalRangeText}>Normal: {item.normal_range}</Text>
+                <View style={styles.compBadgeRow}>
+                  <View style={[styles.compBadge, { backgroundColor: item.improved ? '#ECFDF5' : '#FEF2F2' }]}>
+                    <Text style={[styles.compBadgeText, { color: item.improved ? '#059669' : '#DC2626' }]}>
+                      {item.delta}
+                    </Text>
                   </View>
-                )}
-                <View style={[styles.compBadge, { backgroundColor: item.improved ? '#ECFDF5' : '#FEF2F2' }]}>
-                  <Text style={[styles.compBadgeText, { color: item.improved ? '#059669' : '#DC2626' }]}>
-                    {item.delta}
-                  </Text>
                 </View>
               </View>
             ))}
@@ -152,12 +164,13 @@ const styles = StyleSheet.create({
   comparisonBox: { backgroundColor: '#FFF', borderRadius: 16, padding: 16, marginBottom: 24, borderWidth: 1, borderColor: '#E2E8F0', shadowColor: '#000', shadowOffset: {width:0, height:2}, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
   comparisonTitle: { fontSize: 16, fontWeight: 'bold', color: '#1E293B', marginBottom: 16 },
   comparisonRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  compLabel: { fontSize: 13, fontWeight: '600', color: '#334155', width: 90 },
+  compLabel: { fontSize: 13, fontWeight: '600', color: '#334155', width: 120 },
   compValues: { flexDirection: 'row', alignItems: 'center', flex: 1, flexWrap: 'wrap', marginHorizontal: 8 },
   compOld: { fontSize: 12, color: '#94A3B8', textDecorationLine: 'line-through' },
   compNew: { fontSize: 13, fontWeight: 'bold', color: '#1E293B' },
   compBadge: { paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6 },
   compBadgeText: { fontSize: 12, fontWeight: 'bold' },
-  normalRangeBox: { paddingHorizontal: 6, paddingVertical: 2, backgroundColor: '#F8FAFC', borderRadius: 4, marginRight: 8 },
-  normalRangeText: { fontSize: 10, color: '#64748B', fontWeight: 'bold' },
+  compBadgeRow: { flexDirection: 'row', alignItems: 'center' },
+  normalRangeBox: { paddingHorizontal: 6, paddingVertical: 2, backgroundColor: '#F1F5F9', borderRadius: 4, marginRight: 8, borderWidth: 1, borderColor: '#E2E8F0' },
+  normalRangeText: { fontSize: 10, color: '#475569', fontWeight: 'bold' },
 });

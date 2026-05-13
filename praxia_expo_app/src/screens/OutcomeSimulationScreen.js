@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Platform, StatusBar } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Platform, StatusBar, ActivityIndicator } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ApiService } from '../services/apiService';
 import { Feather, MaterialIcons } from '@expo/vector-icons';
 import { AppColors } from '../constants/theme';
 import AppSidebarWrapper from '../components/AppSidebarWrapper';
 
 export default function OutcomeSimulationScreen({ route, navigation }) {
-  const sidebarRef = React.useRef(null);
+  const sidebarRef = useRef(null);
   const [projectionsData, setProjectionsData] = useState(route.params?.projections || null);
   const [causalityData, setCausalityData] = useState(route.params?.causality_analysis || []);
   const [loading, setLoading] = useState(false);

@@ -7,199 +7,15 @@ import AppSidebarWrapper from '../components/AppSidebarWrapper';
 import { ApiService } from '../services/apiService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export default function TrackProgressScreen({ route, navigation }) {
-  const sidebarRef = useRef(null);
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [dynamicInsights, setDynamicInsights] = useState(null);
-  const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
-  const [actionDaysCompleted, setActionDaysCompleted] = useState({});
-  const [newPlans, setNewPlans] = useState([]);
-  const [currentPlans, setCurrentPlans] = useState([]);
+const getMaterialIconName = (name) => {
+  if (!name) return 'check-circle';
+  return name.replace(/_/g, '-');
+};
 
-  const passedActions = route?.params?.actions;
-
-  const fetchData = async (isInitial = false) => {
-    if (isInitial) setLoading(true);
-    
-    try {
-      // 1. If we have new passedActions from navigation, save them to DB first
-      if (isInitial && passedActions && passedActions.length > 0) {
-        const saveRes = await ApiService.saveAiActions(passedActions);
-        navigation.setParams({ actions: null });
-        if (saveRes && saveRes.actions) {
-          // Immediately use the server-assigned IDs
-          const daysState = {};
-          saveRes.actions.forEach(action => {
-            daysState[action.id] = action.days_completed || Array(7).fill(false);
-          });
-          setActionDaysCompleted(daysState);
-          setData(saveRes);
-          generateDynamicInsights(saveRes.actions);
-          setLoading(false);
-          return; // Skip second fetch
-        }
-      }
-
-      const result = await ApiService.getTrackProgress();
-      if (result && result.actions) {
-        const daysState = {};
-        result.actions.forEach(action => {
-          daysState[action.id] = action.days_completed || Array(7).fill(false);
-        });
-        
-        setActionDaysCompleted(daysState);
-        setData(result);
-        
-        // Refresh insights only on initial load or if explicitly requested
-        if (isInitial || !dynamicInsights) {
-          generateDynamicInsights(result.actions);
-        }
-      }
-    } catch (error) {
-      console.error("Fetch data error:", error);
-    } finally {
-      if (isInitial) setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData(true);
-  }, []);
-
-  useFocusEffect(
-    React.useCallback(() => {
-      fetchData(false);
-    }, [])
-  );
-
-  const calculateHash = (actions) => {
-    return actions.map(a => `${a.id}:${(actionDaysCompleted[a.id] || []).join(',')}:${a.status}`).join('|');
-  };
-
-  const separatePlans = async (actions) => {
-    const now = Date.now();
-    const oneDay = 24 * 60 * 60 * 1000;
-    const newP = [];
-    const currentP = [];
-
-    for (const action of actions) {
-      const activatedAt = await AsyncStorage.getItem(`plan_active_${action.id}`);
-      if (activatedAt && (now - parseInt(activatedAt)) < oneDay) {
-        newP.push(action);
-      } else {
-        currentP.push(action);
-      }
-    }
-    setNewPlans(newP);
-    setCurrentPlans(currentP);
-  };
-
-  const generateDynamicInsights = async (actions) => {
-    if (!actions || actions.length === 0) return;
-    
-    // Check cache first
-    const currentHash = calculateHash(actions);
-    const cachedHash = await AsyncStorage.getItem('track_progress_hash');
-    const cachedInsights = await AsyncStorage.getItem('cached_track_insights');
-    
-    if (currentHash === cachedHash && cachedInsights) {
-      setDynamicInsights(JSON.parse(cachedInsights));
-      separatePlans(actions);
-      return;
-    }
-
-    setIsGeneratingInsights(true);
-    const enrichedActions = actions.map(a => {
-      const days = actionDaysCompleted[a.id] || a.days_completed || Array(7).fill(false);
-      const count = days.filter(d => d).length;
-      return { ...a, days_completed_count: count, adherence_percentage: Math.round((count / 7) * 100) };
-    });
-
-    const insightsData = await ApiService.getTrackProgressInsights(enrichedActions);
-    if (insightsData && Object.keys(insightsData).length > 0) {
-      setDynamicInsights(insightsData);
-      await AsyncStorage.setItem('cached_track_insights', JSON.stringify(insightsData));
-      await AsyncStorage.setItem('track_progress_hash', currentHash);
-    }
-    separatePlans(actions);
-    setIsGeneratingInsights(false);
-  };
-
-
-
-  useEffect(() => {
-    if (data && data.actions) {
-      const timer = setTimeout(() => {
-        generateDynamicInsights(data.actions);
-      }, 2000); // 2s debounce
-      return () => clearTimeout(timer);
-    }
-  }, [data?.actions]);
-
-  const toggleDay = async (actionId, dayIndex) => {
-    // 1. Get current state
-    const currentDays = [...(actionDaysCompleted[actionId] || Array(7).fill(false))];
-    
-    // 2. Toggle the day
-    currentDays[dayIndex] = !currentDays[dayIndex];
-    
-    // 3. Update local state immediately (Optimistic UI)
-    setActionDaysCompleted(prev => ({ ...prev, [actionId]: currentDays }));
-    
-    // 4. Update the main data object to keep UI consistent
-    setData(prev => {
-      if (!prev) return prev;
-      const newActions = prev.actions.map(a => 
-        a.id === actionId ? { ...a, days_completed: currentDays } : a
-      );
-      return { ...prev, actions: newActions };
-    });
-
-    try {
-      // 5. Permanent Save to Database
-      const success = await ApiService.updateActionTask(actionId, { days_completed: currentDays });
-      if (!success) {
-        // Rollback on failure if needed (optional but safer)
-        console.warn("Failed to sync checkmark to server");
-      }
-    } catch (err) {
-      console.error("Sync error:", err);
-    }
-  };
-
-  const handleUpdateStatus = async (actionId, newStatus) => {
-    if (!data) return;
-    
-    let updateData = {};
-    const act = data.actions.find(a => a.id === actionId);
-    if (!act) return;
-
-    if (newStatus === "On Track") {
-      updateData = { status: "On Track", status_color: "success", color_hex: "#10B981" };
-    } else if (newStatus === "Partial") {
-      updateData = { status: "Partial", status_color: "warning", color_hex: "#F59E0B" };
-    } else {
-      updateData = { status: "Not Started", status_color: "error", color_hex: "#EF4444" };
-    }
-
-    // Update Local State
-    setData(prev => {
-      const newActions = prev.actions.map(a => a.id === actionId ? { ...a, ...updateData } : a);
-      return { ...prev, actions: newActions };
-    });
-
-    // Sync to Database
-    await ApiService.updateActionTask(actionId, updateData);
-  };
-
-  const getMaterialIconName = (name) => {
-    if (!name) return 'check-circle';
-    return name.replace(/_/g, '-');
-  };
-
-  const ActionCard = ({ id, icon, title, subtext, statusText, statusColor, color, isLast = false, showSchedule = false }) => (
+const ActionCard = ({ action, actionDaysCompleted, toggleDay, handleUpdateStatus, isLast = false }) => {
+  const { id, icon, title, subtext, status: statusText, color_hex: color, is_actionable: showSchedule } = action;
+  
+  return (
     <View style={[styles.actionRow, isLast && { borderBottomWidth: 0 }]}>
       <View style={styles.actionHeader}>
         <View style={styles.actionLeft}>
@@ -264,6 +80,223 @@ export default function TrackProgressScreen({ route, navigation }) {
       )}
     </View>
   );
+};
+
+export default function TrackProgressScreen({ route, navigation }) {
+  const sidebarRef = useRef(null);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [dynamicInsights, setDynamicInsights] = useState(null);
+  const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
+  const [actionDaysCompleted, setActionDaysCompleted] = useState({});
+  const [newPlans, setNewPlans] = useState([]);
+  const [currentPlans, setCurrentPlans] = useState([]);
+
+  const passedActions = route?.params?.actions;
+
+  const fetchData = async (isInitial = false) => {
+    if (isInitial) {
+      setLoading(true);
+      const cached = await AsyncStorage.getItem('cached_track_data');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        setData(parsed);
+        const daysState = {};
+        parsed.actions?.forEach(action => {
+          daysState[action.id] = action.days_completed || Array(7).fill(false);
+        });
+        setActionDaysCompleted(daysState);
+        setLoading(false);
+      }
+    }
+    
+    try {
+      if (isInitial && passedActions && passedActions.length > 0) {
+        const saveRes = await ApiService.saveAiActions(passedActions);
+        navigation.setParams({ actions: null });
+        if (saveRes && saveRes.actions) {
+          const daysState = {};
+          saveRes.actions.forEach(action => {
+            daysState[action.id] = action.days_completed || Array(7).fill(false);
+          });
+          setActionDaysCompleted(daysState);
+          setData(saveRes);
+          await AsyncStorage.setItem('cached_track_data', JSON.stringify(saveRes));
+          generateDynamicInsights(saveRes.actions);
+          setLoading(false);
+          return;
+        }
+      }
+
+      const result = await ApiService.getTrackProgress();
+      if (result && result.actions) {
+        const daysState = {};
+        result.actions.forEach(action => {
+          daysState[action.id] = action.days_completed || Array(7).fill(false);
+        });
+        
+        setActionDaysCompleted(daysState);
+        setData(result);
+        await AsyncStorage.setItem('cached_track_data', JSON.stringify(result));
+      }
+    } catch (error) {
+      console.error("Fetch data error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData(true);
+  }, []);
+
+  const separatePlans = (actions, daysState) => {
+    if (!actions) return;
+    const newP = [];
+    const currentP = [];
+
+    actions.forEach(action => {
+      const days = daysState[action.id] || action.days_completed || Array(7).fill(false);
+      const hasSelectedDay = days.some(d => d === true);
+      
+      if (!hasSelectedDay) {
+        newP.push(action);
+      } else {
+        currentP.push(action);
+      }
+    });
+    setNewPlans(newP);
+    setCurrentPlans(currentP);
+  };
+
+  const generateDynamicInsights = async (actions, daysState) => {
+    if (!actions || actions.length === 0) return;
+    
+    // Check cache first (3 min TTL)
+    const cachedInsights = await AsyncStorage.getItem('cached_track_insights');
+    const lastInsightTime = await AsyncStorage.getItem('track_insights_timestamp');
+    const now = Date.now();
+    const THREE_MINUTES = 3 * 60 * 1000;
+    
+    if (cachedInsights && lastInsightTime && (now - parseInt(lastInsightTime) < THREE_MINUTES)) {
+      setDynamicInsights(JSON.parse(cachedInsights));
+      return;
+    }
+
+    setIsGeneratingInsights(true);
+    const enrichedActions = actions.map(a => {
+      const days = daysState[a.id] || a.days_completed || Array(7).fill(false);
+      const count = days.filter(d => d).length;
+      return { ...a, days_completed_count: count, adherence_percentage: Math.round((count / 7) * 100) };
+    });
+
+    const insightsData = await ApiService.getTrackProgressInsights(enrichedActions);
+    if (insightsData && Object.keys(insightsData).length > 0) {
+      setDynamicInsights(insightsData);
+      await AsyncStorage.setItem('cached_track_insights', JSON.stringify(insightsData));
+      await AsyncStorage.setItem('track_insights_timestamp', now.toString());
+    }
+    setIsGeneratingInsights(false);
+  };
+
+
+
+  useEffect(() => {
+    if (data && data.actions) {
+      separatePlans(data.actions, actionDaysCompleted);
+      generateDynamicInsights(data.actions, actionDaysCompleted);
+    }
+  }, [data?.actions, actionDaysCompleted]);
+
+  const toggleDay = async (actionId, dayIndex) => {
+    // 1. Get current state
+    const currentDays = [...(actionDaysCompleted[actionId] || Array(7).fill(false))];
+    
+    // 2. Toggle the day
+    currentDays[dayIndex] = !currentDays[dayIndex];
+    
+    // 3. Update local state immediately (Optimistic UI)
+    setActionDaysCompleted(prev => ({ ...prev, [actionId]: currentDays }));
+    
+    // 4. Update the main data object to keep UI consistent
+    setData(prev => {
+      if (!prev) return prev;
+      
+      const newActions = prev.actions.map(a => {
+        if (a.id === actionId) {
+          const completedCount = currentDays.filter(d => d).length;
+          let statusUpdate = {};
+          if (completedCount === 0) {
+            statusUpdate = { status: "Not Started", status_color: "error", color_hex: "#EF4444" };
+          } else if (completedCount >= 5) {
+            statusUpdate = { status: "On Track", status_color: "success", color_hex: "#10B981" };
+          } else {
+            statusUpdate = { status: "Partial", status_color: "warning", color_hex: "#F59E0B" };
+          }
+          return { ...a, days_completed: currentDays, ...statusUpdate };
+        }
+        return a;
+      });
+      const newData = { ...prev, actions: newActions };
+      AsyncStorage.setItem('cached_track_data', JSON.stringify(newData));
+      return newData;
+    });
+
+    try {
+      // 5. Permanent Save to Database
+      const completedCount = currentDays.filter(d => d).length;
+      let statusUpdate = {};
+      if (completedCount === 0) {
+        statusUpdate = { status: "Not Started", status_color: "error", color_hex: "#EF4444" };
+      } else if (completedCount >= 5) {
+        statusUpdate = { status: "On Track", status_color: "success", color_hex: "#10B981" };
+      } else {
+        statusUpdate = { status: "Partial", status_color: "warning", color_hex: "#F59E0B" };
+      }
+
+      const success = await ApiService.updateActionTask(actionId, { days_completed: currentDays, ...statusUpdate });
+      if (!success) {
+        // Rollback on failure if needed (optional but safer)
+        console.warn("Failed to sync checkmark to server");
+      }
+    } catch (err) {
+      console.error("Sync error:", err);
+    }
+  };
+
+  const handleUpdateStatus = async (actionId, newStatus) => {
+    if (!data) return;
+    
+    let updateData = {};
+    const act = data.actions.find(a => a.id === actionId);
+    if (!act) return;
+
+    if (newStatus === "On Track") {
+      updateData = { status: "On Track", status_color: "success", color_hex: "#10B981" };
+    } else if (newStatus === "Partial") {
+      updateData = { status: "Partial", status_color: "warning", color_hex: "#F59E0B" };
+    } else {
+      updateData = { status: "Not Started", status_color: "error", color_hex: "#EF4444" };
+    }
+
+    // Update Local State
+    setData(prev => {
+      const newActions = prev.actions.map(a => a.id === actionId ? { ...a, ...updateData } : a);
+      const newData = { ...prev, actions: newActions };
+      AsyncStorage.setItem('cached_track_data', JSON.stringify(newData));
+      return newData;
+    });
+
+    // Sync to Database
+    await ApiService.updateActionTask(actionId, updateData);
+  };
+
+  // Helper to get Material icon names
+  const getMaterialIconName = (name) => {
+    if (!name) return 'check-circle';
+    return name.replace(/_/g, '-');
+  };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -279,9 +312,8 @@ export default function TrackProgressScreen({ route, navigation }) {
             <Feather name="menu" size={24} color={AppColors.text} />
           </TouchableOpacity>
         <Text style={styles.headerTitle}>Track Progress</Text>
-        <TouchableOpacity style={styles.bellIcon}>
-          <Feather name="bell" size={24} color={AppColors.text} />
-          <View style={styles.badge} />
+        <TouchableOpacity onPress={() => fetchData(true)} style={styles.refreshIcon}>
+          <MaterialIcons name="refresh" size={26} color={AppColors.text} />
         </TouchableOpacity>
       </View>
 
@@ -366,20 +398,16 @@ export default function TrackProgressScreen({ route, navigation }) {
 
             {newPlans.length > 0 && (
               <>
-                <Text style={styles.groupHeader}>NEW PLANS AND CURRENT PROGRESS</Text>
+                <Text style={styles.groupHeader}>NEW ACTIONS</Text>
                 <View style={styles.card}>
                   {newPlans.map((action, idx) => (
                     <ActionCard 
                       key={action.id}
-                      id={action.id}
-                      icon={action.icon}
-                      title={action.title}
-                      subtext={action.subtext}
-                      statusText={action.status}
-                      statusColor={action.color_hex}
-                      color={action.color_hex}
+                      action={action}
+                      actionDaysCompleted={actionDaysCompleted}
+                      toggleDay={toggleDay}
+                      handleUpdateStatus={handleUpdateStatus}
                       isLast={idx === newPlans.length - 1}
-                      showSchedule={action.is_actionable}
                     />
                   ))}
                 </View>
@@ -393,15 +421,11 @@ export default function TrackProgressScreen({ route, navigation }) {
                   {currentPlans.map((action, idx) => (
                     <ActionCard 
                       key={action.id}
-                      id={action.id}
-                      icon={action.icon}
-                      title={action.title}
-                      subtext={action.subtext}
-                      statusText={action.status}
-                      statusColor={action.color_hex}
-                      color={action.color_hex}
+                      action={action}
+                      actionDaysCompleted={actionDaysCompleted}
+                      toggleDay={toggleDay}
+                      handleUpdateStatus={handleUpdateStatus}
                       isLast={idx === currentPlans.length - 1}
-                      showSchedule={action.is_actionable}
                     />
                   ))}
                 </View>
@@ -476,7 +500,7 @@ export default function TrackProgressScreen({ route, navigation }) {
               }}
             >
               <View style={styles.cardHeaderLeft}>
-                <Ionicons name="bullseye" size={20} color="#3B82F6" />
+                <MaterialIcons name="track-changes" size={20} color="#3B82F6" />
                 <Text style={styles.cardTitle}>If you stay on track</Text>
               </View>
               <View style={[styles.projectionBox, isGeneratingInsights && { opacity: 0.6 }]}>
@@ -515,30 +539,6 @@ export default function TrackProgressScreen({ route, navigation }) {
 
 
       </ScrollView>
-
-      {/* Bottom Tab Bar */}
-      <View style={styles.bottomTab}>
-        <TouchableOpacity style={styles.tabItem} onPress={() => navigation.navigate('Dashboard')}>
-          <Feather name="home" size={24} color="#94A3B8" />
-          <Text style={styles.tabText}>Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} onPress={() => navigation.navigate('DataSources')}>
-          <Feather name="file-text" size={24} color="#94A3B8" />
-          <Text style={styles.tabText}>Results</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} onPress={() => navigation.navigate('Prediction')}>
-          <MaterialIcons name="lightbulb" size={24} color="#94A3B8" />
-          <Text style={styles.tabText}>Insights</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem}>
-          <Feather name="trending-up" size={24} color={AppColors.primary} />
-          <Text style={[styles.tabText, {color: AppColors.primary}]}>Track</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} onPress={() => navigation.navigate('Settings')}>
-          <Feather name="user" size={24} color="#94A3B8" />
-          <Text style={styles.tabText}>Profile</Text>
-        </TouchableOpacity>
-      </View>
 
       </SafeAreaView>
     </AppSidebarWrapper>
@@ -759,13 +759,15 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   miniStatusButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     marginRight: 8,
     backgroundColor: '#F8FAFC',
+    minWidth: 80,
+    alignItems: 'center',
   },
   miniStatusText: {
     fontSize: 11,
