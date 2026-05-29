@@ -17,7 +17,9 @@ import {
   MonitorHeart,
   Shield,
   MoreVert,
-  TrendingUp
+  TrendingUp,
+  AutoAwesome,
+  SpeedOutlined,
 } from "@mui/icons-material";
 import {
   Box,
@@ -32,6 +34,8 @@ import {
 const items = [
   ["Home", "/", <Home key="home" />],
   ["Dashboard", "/dashboard", <Dashboard key="dash" />],
+  ["Daily Snapshot", "/dashboard/daily", <SpeedOutlined key="daily" />],
+  ["AI Summary", "/dashboard/ai-summary", <AutoAwesome key="aisum" />],
   ["Profile", "/profile", <Favorite key="fav" />],
   ["Vitals", "/vitals", <MonitorHeart key="vit" />],
   ["Data", "/data", <Storage key="str" />],

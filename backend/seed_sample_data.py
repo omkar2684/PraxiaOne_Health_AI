@@ -245,7 +245,7 @@ Important: This is not legal advice. Consult your insurance policy terms and a q
             # Since we don't have actual files, we'll simulate by creating a temporary file
             import tempfile
             import os
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as f:
                 f.write(content)
                 temp_path = f.name
 

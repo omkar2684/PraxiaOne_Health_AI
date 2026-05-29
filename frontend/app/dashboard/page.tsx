@@ -1,486 +1,392 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { alpha, useTheme } from "@mui/material/styles";
 import {
-  Box,
-  Card,
-  CardContent,
-  Grid,
-  Typography,
-  Stack,
-  Button,
-  Chip,
-  Divider,
-  LinearProgress,
-  List,
-  ListItem,
-  ListItemText,
-  Skeleton,
-  Alert,
+  Box, Grid, Stack, Typography, Card, CardContent,
+  Skeleton, Tabs, Tab, Chip, useMediaQuery,
 } from "@mui/material";
-
-import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
-import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import HomeIcon from "@mui/icons-material/Home";
+import BiotechIcon from "@mui/icons-material/Biotech";
 import FavoriteIcon from "@mui/icons-material/Favorite";
-import MedicationIcon from "@mui/icons-material/Medication";
-import ScienceIcon from "@mui/icons-material/Science";
-import InsightsIcon from "@mui/icons-material/Insights";
-import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
-
-import Lottie from "lottie-react";
-import aiHealth from "@/public/animations/ai-health.json";
-
+import DirectionsRunIcon from "@mui/icons-material/DirectionsRun";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
+import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import { useRouter } from "next/navigation";
 import { requireAuth } from "@/lib/requireAuth";
-import { apiFetch } from "@/lib/api";
+import { motion, AnimatePresence } from "framer-motion";
 
-type ProgressData = {
-  target_weight?: number;
-  start_weight?: number;
-  current_weight?: number;
-  progress: number;
-  message?: string;
-};
+// Dashboard components
+import DashboardHeader from "@/components/dashboard/DashboardHeader";
+import HealthScoreGauge from "@/components/dashboard/HealthScoreGauge";
+import BiomarkerSnapshotCard from "@/components/dashboard/BiomarkerSnapshotCard";
+import PhysiologySnapshotCard from "@/components/dashboard/PhysiologySnapshotCard";
+import BehaviorSnapshotCard from "@/components/dashboard/BehaviorSnapshotCard";
+import ClinicalCareCard from "@/components/dashboard/ClinicalCareCard";
+import AIInsightCard from "@/components/dashboard/AIInsightCard";
+import RecommendedActionsPanel from "@/components/dashboard/RecommendedActionsPanel";
 
-function MetricCard({
-  title,
-  value,
-  icon,
-  hint,
-}: {
-  title: string;
-  value: string;
-  icon: React.ReactNode;
-  hint?: string;
-}) {
+// API
+import {
+  fetchHealthScore, fetchBiomarkers, fetchPhysiology,
+  fetchBehavior, fetchClinical, fetchInsights,
+  fetchRecommendations, fetchRiskFlags,
+  MOCK_HEALTH_SCORE, MOCK_BIOMARKERS, MOCK_PHYSIOLOGY,
+  MOCK_BEHAVIOR, MOCK_CLINICAL, MOCK_INSIGHTS,
+  MOCK_RECOMMENDATIONS, MOCK_RISK_FLAGS,
+} from "@/lib/dashboardApi";
+import type {
+  HealthScore, BiomarkerSnapshot, PhysiologySnapshot,
+  BehaviorSnapshot, ClinicalSnapshot, AIInsight,
+  AIRecommendation, RiskFlag,
+} from "@/types/dashboard";
+
+// ── Skeleton helpers ──────────────────────────────────────────
+function CardSkeleton({ height = 200 }: { height?: number }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
-
   return (
-    <Card
+    <Skeleton
+      variant="rounded"
+      height={height}
       sx={{
-        borderRadius: 0,
-        height: "100%",
-        overflow: "hidden",
-        border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.14 : 0.08)}`,
-        boxShadow: isDark ? "0 18px 80px rgba(0,0,0,0.40)" : "0 18px 60px rgba(2,6,23,0.08)",
-        background: isDark
-          ? `linear-gradient(180deg, ${alpha("#0f172a", 0.78)}, ${alpha("#020617", 0.70)})`
-          : `linear-gradient(180deg, ${alpha("#ffffff", 0.82)}, ${alpha("#ffffff", 0.60)})`,
-        backdropFilter: "blur(12px)",
+        borderRadius: 3,
+        background: isDark ? alpha("#1e293b", 0.6) : alpha("#e2e8f0", 0.6),
       }}
-    >
-      <CardContent sx={{ p: 2.2 }}>
-        <Stack direction="row" spacing={1.2} alignItems="center">
-          <Box
-            sx={{
-              width: 42,
-              height: 42,
-              borderRadius: 0,
-              display: "grid",
-              placeItems: "center",
-              background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.16)}, ${alpha(
-                theme.palette.secondary.main,
-                0.14
-              )})`,
-              border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.14 : 0.08)}`,
-              boxShadow: isDark ? "none" : "inset 0 1px 0 rgba(255,255,255,0.85)",
-            }}
-          >
-            {icon}
-          </Box>
-
-          <Box sx={{ minWidth: 0 }}>
-            <Typography
-              variant="body2"
-              sx={{ color: isDark ? alpha("#E2E8F0", 0.70) : theme.palette.text.secondary }}
-            >
-              {title}
-            </Typography>
-            <Typography variant="h6" sx={{ fontWeight: 950, mt: 0.2 }}>
-              {value}
-            </Typography>
-          </Box>
-        </Stack>
-
-        {hint && (
-          <Typography variant="caption" sx={{ display: "block", mt: 1.2, opacity: isDark ? 0.75 : 0.85 }}>
-            {hint}
-          </Typography>
-        )}
-      </CardContent>
-    </Card>
+    />
   );
 }
 
-export default function DashboardPage() {
+// ── Navigation Tab Config ─────────────────────────────────────
+const NAV_TABS = [
+  { label: "Home", icon: <HomeIcon sx={{ fontSize: 18 }} />, path: "/dashboard" },
+  { label: "Biology", icon: <BiotechIcon sx={{ fontSize: 18 }} />, path: "/dashboard/daily" },
+  { label: "Physiology", icon: <FavoriteIcon sx={{ fontSize: 18 }} />, path: "/vitals" },
+  { label: "Behavior", icon: <DirectionsRunIcon sx={{ fontSize: 18 }} />, path: "/track" },
+  { label: "AI", icon: <AutoAwesomeIcon sx={{ fontSize: 18 }} />, path: "/dashboard/ai-summary" },
+  { label: "Profile", icon: <AccountCircleIcon sx={{ fontSize: 18 }} />, path: "/profile" },
+];
+
+// ── Main Dashboard ────────────────────────────────────────────
+export default function HomeDashboardPage() {
   requireAuth();
   const router = useRouter();
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
-  const [progress, setProgress] = useState<ProgressData | null>(null);
-  const [loadingProgress, setLoadingProgress] = useState(true);
-  const [notice, setNotice] = useState<string>("");
-  const [medsCount, setMedsCount] = useState<number>(0);
-  const [loadingMeds, setLoadingMeds] = useState(true);
+  // Data state
+  const [healthScore, setHealthScore] = useState<HealthScore>(MOCK_HEALTH_SCORE);
+  const [biomarkers, setBiomarkers] = useState<BiomarkerSnapshot>(MOCK_BIOMARKERS);
+  const [physiology, setPhysiology] = useState<PhysiologySnapshot>(MOCK_PHYSIOLOGY);
+  const [behavior, setBehavior] = useState<BehaviorSnapshot>(MOCK_BEHAVIOR);
+  const [clinical, setClinical] = useState<ClinicalSnapshot>(MOCK_CLINICAL);
+  const [insights, setInsights] = useState<AIInsight[]>(MOCK_INSIGHTS);
+  const [recommendations, setRecommendations] = useState<AIRecommendation[]>(MOCK_RECOMMENDATIONS);
+  const [riskFlags, setRiskFlags] = useState<RiskFlag[]>(MOCK_RISK_FLAGS);
+  const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState(0);
 
-  const loadMedsCount = async () => {
-    setLoadingMeds(true);
+  const loadAll = useCallback(async () => {
+    setIsRefreshing(true);
     try {
-      const data = await apiFetch<any[]>("/medications/", { method: "GET" });
-      setMedsCount(Array.isArray(data) ? data.length : 0);
-    } catch {
-      try {
-        const raw = localStorage.getItem("praxiaone_meds_v1");
-        const parsed = raw ? JSON.parse(raw) : [];
-        setMedsCount(parsed.length);
-      } catch {
-        setMedsCount(0);
-      }
+      const [hs, bm, phy, beh, clin, ins, recs, risks] = await Promise.allSettled([
+        fetchHealthScore(),
+        fetchBiomarkers(),
+        fetchPhysiology(),
+        fetchBehavior(),
+        fetchClinical(),
+        fetchInsights(),
+        fetchRecommendations(),
+        fetchRiskFlags(),
+      ]);
+
+      if (hs.status === "fulfilled") setHealthScore(hs.value);
+      if (bm.status === "fulfilled") setBiomarkers(bm.value);
+      if (phy.status === "fulfilled") setPhysiology(phy.value);
+      if (beh.status === "fulfilled") setBehavior(beh.value);
+      if (clin.status === "fulfilled") setClinical(clin.value);
+      if (ins.status === "fulfilled") setInsights(ins.value);
+      if (recs.status === "fulfilled") setRecommendations(recs.value);
+      if (risks.status === "fulfilled") setRiskFlags(risks.value);
     } finally {
-      setLoadingMeds(false);
+      setLoading(false);
+      setIsRefreshing(false);
     }
-  };
-
-  const [labsCount, setLabsCount] = useState<number>(0);
-  const [loadingLabs, setLoadingLabs] = useState(true);
-
-  const loadLabsCount = async () => {
-    setLoadingLabs(true);
-    try {
-      const data = await apiFetch<any[]>("/documents/?type=lab_result", { method: "GET" });
-      setLabsCount(Array.isArray(data) ? data.length : 0);
-    } catch {
-      setLabsCount(0);
-    } finally {
-      setLoadingLabs(false);
-    }
-  };
-
-  const loadProgress = async () => {
-    setLoadingProgress(true);
-    setNotice("");
-
-    try {
-      const json = await apiFetch<ProgressData>("/vitals/progress/", { method: "GET" });
-      setProgress(json);
-      if (json?.message) setNotice(json.message);
-    } catch (e: any) {
-      // consent lock comes as 403; show message if present
-      try {
-        const msg = typeof e?.message === "string" ? e.message : "";
-        setNotice(msg || "Unable to load progress (API down or not authorized).");
-      } catch {
-        setNotice("Unable to load progress.");
-      }
-      setProgress(null);
-    } finally {
-      setLoadingProgress(false);
-    }
-  };
-
-  useEffect(() => {
-    loadProgress();
-    loadMedsCount();
-    loadLabsCount();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const progressValue = useMemo(() => {
-    const v = progress?.progress ?? 0;
-    return Math.max(0, Math.min(100, Number(Number(v).toFixed(2))));
-  }, [progress]);
-
-  const progressBadge = useMemo(() => {
-    if (!progress) return "No data";
-    if (progressValue >= 100) return "Goal achieved 🎉";
-    if (progressValue >= 70) return "Almost there 💪";
-    if (progressValue >= 30) return "Good progress ✅";
-    return "Getting started 🚀";
-  }, [progress, progressValue]);
+  useEffect(() => { loadAll(); }, [loadAll]);
 
   const pageBg = useMemo(() => {
     const p = theme.palette.primary.main;
     const s = theme.palette.secondary.main;
-    const ok = theme.palette.success.main;
-
-    if (isDark) {
-      return (
-        `radial-gradient(1200px 650px at 15% 0%, ${alpha(p, 0.18)}, transparent 60%),` +
-        `radial-gradient(900px 520px at 85% 20%, ${alpha(s, 0.18)}, transparent 55%),` +
-        `radial-gradient(900px 520px at 50% 110%, ${alpha(ok, 0.12)}, transparent 55%),` +
-        `linear-gradient(180deg, ${theme.palette.background.default} 0%, ${theme.palette.background.default} 100%)`
-      );
-    }
-
-    return (
-      `radial-gradient(1200px 650px at 15% 0%, ${alpha(p, 0.10)}, transparent 60%),` +
-      `radial-gradient(900px 520px at 85% 20%, ${alpha(s, 0.10)}, transparent 55%),` +
-      `linear-gradient(180deg, ${theme.palette.background.default} 0%, ${theme.palette.background.default} 100%)`
-    );
+    return isDark
+      ? `radial-gradient(1100px 600px at 10% 0%, ${alpha(p, 0.16)}, transparent 55%),` +
+        `radial-gradient(800px 500px at 90% 15%, ${alpha(s, 0.14)}, transparent 50%),` +
+        `radial-gradient(600px 400px at 50% 100%, ${alpha("#7c3aed", 0.10)}, transparent 50%),` +
+        theme.palette.background.default
+      : `radial-gradient(1100px 600px at 10% 0%, ${alpha(p, 0.09)}, transparent 55%),` +
+        `radial-gradient(800px 500px at 90% 15%, ${alpha(s, 0.07)}, transparent 50%),` +
+        theme.palette.background.default;
   }, [theme, isDark]);
 
-  const surfaceCard = useMemo(
-    () => ({
-      borderRadius: 0,
-      border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.14 : 0.08)}`,
-      boxShadow: isDark ? "0 28px 110px rgba(0,0,0,0.55)" : "0 24px 80px rgba(2,6,23,0.10)",
-      overflow: "hidden",
-      background: isDark
-        ? `linear-gradient(180deg, ${alpha("#0f172a", 0.80)}, ${alpha("#020617", 0.72)})`
-        : `linear-gradient(180deg, ${alpha("#ffffff", 0.82)}, ${alpha("#ffffff", 0.58)})`,
-      backdropFilter: "blur(12px)",
-    }),
-    [theme, isDark]
-  );
-
-  const pill = useMemo(
-    () => ({
-      borderRadius: 0,
-      fontWeight: 950,
-      border: 0,
-      background: alpha(theme.palette.primary.main, isDark ? 0.18 : 0.12),
-      color: isDark ? alpha("#E2E8F0", 0.92) : theme.palette.text.primary,
-    }),
-    [theme, isDark]
-  );
+  const criticalRisks = riskFlags.filter((r) => r.severity === "critical" || r.severity === "high");
 
   return (
     <Box
       sx={{
-        px: { xs: 2, md: 3 },
-        py: { xs: 2, md: 3 },
-        minHeight: "calc(100vh - 64px)",
+        minHeight: "100vh",
         background: pageBg,
+        pb: isMobile ? 10 : 4,
       }}
     >
-      <Card sx={{ ...surfaceCard, mb: 3 }}>
-        <CardContent sx={{ p: { xs: 2.2, md: 3 } }}>
-          <Stack
-            direction={{ xs: "column", md: "row" }}
-            alignItems={{ xs: "flex-start", md: "center" }}
-            justifyContent="space-between"
-            spacing={2}
-          >
-            <Box>
-              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                <Chip icon={<AutoAwesomeIcon />} label="AI-Driven Wellness" sx={pill} />
-                <Chip
-                  icon={<TrendingUpIcon />}
-                  label={progressBadge}
-                  sx={{ ...pill, background: alpha(theme.palette.text.primary, isDark ? 0.10 : 0.06) }}
-                />
-              </Stack>
+      {/* ── Section A: Header ──────────────────────────── */}
+      <DashboardHeader
+        notificationCount={criticalRisks.length}
+        onRefresh={loadAll}
+        isRefreshing={isRefreshing}
+      />
 
-              <Typography variant="h4" sx={{ fontWeight: 950, mt: 1 }}>
-                Dashboard
-              </Typography>
-              <Typography sx={{ mt: 0.3, color: isDark ? alpha("#E2E8F0", 0.72) : theme.palette.text.secondary }}>
-                Your personalized overview — vitals, data sources, and AI insights in one place.
-              </Typography>
-            </Box>
-
-            <Stack direction="row" spacing={1} flexWrap="wrap">
-              <Button
-                variant="contained"
-                color="success"
-                onClick={() => router.push("/data")}
-                sx={{ borderRadius: 0, fontWeight: 950, px: 2.2 }}
-                endIcon={<ArrowForwardIcon />}
-              >
-                Connect Data
-              </Button>
-              <Button variant="outlined" onClick={() => router.push("/vitals")} sx={{ borderRadius: 0, fontWeight: 950, px: 2.2 }}>
-                View Vitals
-              </Button>
-              <Button variant="outlined" onClick={loadProgress} sx={{ borderRadius: 0, fontWeight: 950, px: 2.2 }}>
-                Refresh
-              </Button>
-            </Stack>
-          </Stack>
-
-          {notice && (
-            <Alert severity="info" sx={{ mt: 2, borderRadius: 0 }}>
-              {notice}
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
-
-      <Grid container spacing={3} alignItems="stretch">
-        <Grid size={{ xs: 12, lg: 8 }}>
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <MetricCard title="Vitals Snapshot" value={progress ? "Active" : "—"} icon={<FavoriteIcon color="error" />} hint="Based on latest vitals" />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <MetricCard title="Medications" value={loadingMeds ? "Loading..." : `${medsCount} Active`} icon={<MedicationIcon color="primary" />} hint="Add meds to track" />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <MetricCard title="Lab Results" value={loadingLabs ? "Loading..." : `${labsCount} Uploaded`} icon={<ScienceIcon color="secondary" />} hint="Upload PDF reports" />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <MetricCard title="AI Insights" value="Ready" icon={<InsightsIcon color="success" />} hint="Consent required" />
-            </Grid>
-          </Grid>
-
-          <Card sx={{ ...surfaceCard, mt: 3 }}>
-            <Box sx={{ height: 6, background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})` }} />
-            <CardContent sx={{ p: { xs: 2.2, md: 3 } }}>
-              <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", sm: "center" }} spacing={1}>
-                <Box>
-                  <Typography sx={{ fontWeight: 950 }}>Weight Goal Progress</Typography>
-                  <Typography variant="body2" sx={{ color: isDark ? alpha("#E2E8F0", 0.70) : theme.palette.text.secondary }}>
-                    Tracks your journey from start to target.
-                  </Typography>
-                </Box>
-
-                <Chip label={loadingProgress ? "Loading..." : `${progressValue}%`} sx={{ ...pill, background: alpha(theme.palette.primary.main, isDark ? 0.18 : 0.12) }} />
-              </Stack>
-
-              <Divider sx={{ my: 2, opacity: isDark ? 0.12 : 0.25 }} />
-
-              {loadingProgress ? (
-                <Box>
-                  <Skeleton variant="rounded" height={14} />
-                  <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mt: 2 }}>
-                    <Skeleton variant="rounded" height={72} sx={{ flex: 1 }} />
-                    <Skeleton variant="rounded" height={72} sx={{ flex: 1 }} />
-                    <Skeleton variant="rounded" height={72} sx={{ flex: 1 }} />
-                  </Stack>
-                </Box>
-              ) : (
-                <>
-                  <LinearProgress
-                    variant="determinate"
-                    value={progressValue}
+      <Box sx={{ mt: 2.5 }}>
+        <AnimatePresence mode="wait">
+          {loading ? (
+            <motion.div key="skeleton" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <Grid container spacing={3}>
+                <Grid size={{ xs: 12, lg: 4 }}><CardSkeleton height={320} /></Grid>
+                <Grid size={{ xs: 12, lg: 8 }}><CardSkeleton height={320} /></Grid>
+                <Grid size={{ xs: 12 }}><CardSkeleton height={260} /></Grid>
+                <Grid size={{ xs: 12, md: 6 }}><CardSkeleton height={240} /></Grid>
+                <Grid size={{ xs: 12, md: 6 }}><CardSkeleton height={240} /></Grid>
+                <Grid size={{ xs: 12, lg: 7 }}><CardSkeleton height={300} /></Grid>
+                <Grid size={{ xs: 12, lg: 5 }}><CardSkeleton height={300} /></Grid>
+              </Grid>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="content"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              <Grid container spacing={3}>
+                {/* ── Section B: Health Score Card ───────── */}
+                <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
+                  <Card
                     sx={{
-                      height: 14,
-                      borderRadius: 0,
-                      backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.12 : 0.08),
-                      "& .MuiLinearProgress-bar": {
-                        borderRadius: 0,
-                        background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                      },
+                      borderRadius: 3,
+                      height: "100%",
+                      minHeight: 340,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: isDark
+                        ? `linear-gradient(155deg, ${alpha("#0f172a", 0.9)}, ${alpha("#1e293b", 0.8)})`
+                        : `linear-gradient(155deg, ${alpha("#ffffff", 0.94)}, ${alpha("#f0f9ff", 0.85)})`,
+                      border: `1px solid ${alpha(theme.palette.primary.main, isDark ? 0.2 : 0.14)}`,
+                      backdropFilter: "blur(16px)",
+                      boxShadow: isDark
+                        ? `0 24px 80px rgba(0,0,0,0.55), 0 0 0 1px ${alpha(theme.palette.primary.main, 0.08)}`
+                        : `0 24px 70px rgba(2,6,23,0.10)`,
                     }}
+                  >
+                    <CardContent sx={{ p: 3, width: "100%", display: "flex", flexDirection: "column", alignItems: "center" }}>
+                      <Typography
+                        variant="overline"
+                        sx={{
+                          fontWeight: 900,
+                          letterSpacing: 2,
+                          color: theme.palette.primary.main,
+                          fontSize: 10,
+                          mb: 1,
+                        }}
+                      >
+                        Health Score
+                      </Typography>
+                      <HealthScoreGauge data={healthScore} size={isMobile ? 180 : 210} />
+
+                      {/* Contributor Pills */}
+                      <Box sx={{ mt: 2, width: "100%" }}>
+                        <Typography variant="caption" sx={{ opacity: 0.55, fontWeight: 700, display: "block", mb: 1 }}>
+                          Score Breakdown
+                        </Typography>
+                        <Stack spacing={0.7}>
+                          {healthScore.contributors.map((c) => (
+                            <Stack key={c.domain} direction="row" justifyContent="space-between" alignItems="center">
+                              <Typography variant="caption" sx={{ fontWeight: 600, opacity: 0.75, textTransform: "capitalize" }}>
+                                {c.domain}
+                              </Typography>
+                              <Stack direction="row" spacing={0.8} alignItems="center">
+                                <Box
+                                  sx={{
+                                    width: 50,
+                                    height: 4,
+                                    borderRadius: 999,
+                                    background: alpha(theme.palette.text.primary, 0.1),
+                                    overflow: "hidden",
+                                  }}
+                                >
+                                  <motion.div
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${c.score}%` }}
+                                    transition={{ duration: 1, ease: "easeOut" }}
+                                    style={{
+                                      height: "100%",
+                                      background: c.score >= 70 ? "#22c55e" : c.score >= 50 ? "#f59e0b" : "#ef4444",
+                                      borderRadius: 999,
+                                    }}
+                                  />
+                                </Box>
+                                <Typography variant="caption" sx={{ fontWeight: 800, minWidth: 28 }}>
+                                  {c.score}
+                                </Typography>
+                              </Stack>
+                            </Stack>
+                          ))}
+                        </Stack>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+
+                {/* ── Section G: AI Priority Insights ────── */}
+                <Grid size={{ xs: 12, sm: 6, lg: 5 }}>
+                  <AIInsightCard insights={insights} />
+                </Grid>
+
+                {/* ── Section H: Recommended Actions ──────── */}
+                <Grid size={{ xs: 12, lg: 4 }}>
+                  <RecommendedActionsPanel
+                    recommendations={recommendations.slice(0, 3)}
+                    onOverride={(id) => console.info("[Audit] User overrode recommendation:", id)}
                   />
+                </Grid>
 
-                  <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mt: 2 }}>
-                    <MiniStat title="Start" value={progress?.start_weight ?? 0} />
-                    <MiniStat title="Current" value={progress?.current_weight ?? 0} />
-                    <MiniStat title="Target" value={progress?.target_weight ?? 0} />
-                  </Stack>
+                {/* ── Section D: Physiology Snapshot ──────── */}
+                <Grid size={{ xs: 12 }}>
+                  <PhysiologySnapshotCard data={physiology} />
+                </Grid>
 
-                  {progress?.message && (
-                    <Typography variant="caption" sx={{ display: "block", mt: 1.5, opacity: 0.80 }}>
-                      {progress.message}
-                    </Typography>
-                  )}
-                </>
-              )}
-            </CardContent>
-          </Card>
+                {/* ── Section C: Biomarker Snapshot ───────── */}
+                <Grid size={{ xs: 12, lg: 8 }}>
+                  <BiomarkerSnapshotCard data={biomarkers} />
+                </Grid>
 
-          <Card sx={{ ...surfaceCard, mt: 3 }}>
-            <CardContent sx={{ p: { xs: 2.2, md: 3 } }}>
-              <Typography sx={{ fontWeight: 950, mb: 0.5 }}>Recent Activity</Typography>
-              <Typography variant="body2" sx={{ mb: 2, color: isDark ? alpha("#E2E8F0", 0.70) : theme.palette.text.secondary }}>
-                A quick timeline of what changed recently (placeholder for now).
-              </Typography>
+                {/* ── Section F: Clinical Care Plan ───────── */}
+                <Grid size={{ xs: 12, lg: 4 }}>
+                  <ClinicalCareCard data={clinical} />
+                </Grid>
 
-              <List disablePadding>
-                {[
-                  "Vitals progress fetched successfully",
-                  "Theme preference saved (Classic/Midnight/Aurora)",
-                  "AI Insights module ready (consent gating next)",
-                ].map((t, idx) => (
-                  <ListItem key={idx} sx={{ px: 0 }}>
-                    <ListItemText primary={t} secondary="Today" primaryTypographyProps={{ sx: { fontWeight: 700 } }} />
-                  </ListItem>
-                ))}
-              </List>
-            </CardContent>
-          </Card>
-        </Grid>
+                {/* ── Section E: Behavior Snapshot ────────── */}
+                <Grid size={{ xs: 12 }}>
+                  <BehaviorSnapshotCard data={behavior} />
+                </Grid>
 
-        <Grid size={{ xs: 12, lg: 4 }}>
-          <Card sx={{ ...surfaceCard, height: "100%", minHeight: 560, display: "flex", flexDirection: "column" }}>
-            <Box sx={{ height: 6, background: `linear-gradient(90deg, ${theme.palette.secondary.main}, ${theme.palette.primary.main})` }} />
+                {/* Quick Nav Buttons */}
+                <Grid size={{ xs: 12 }}>
+                  <Card
+                    sx={{
+                      borderRadius: 3,
+                      background: isDark
+                        ? alpha("#0f172a", 0.7)
+                        : alpha("#ffffff", 0.8),
+                      border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.08 : 0.05)}`,
+                      backdropFilter: "blur(12px)",
+                    }}
+                  >
+                    <CardContent sx={{ p: 2 }}>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" gap={1}>
+                        {[
+                          { label: "View Daily Snapshot", path: "/dashboard/daily", color: theme.palette.primary.main },
+                          { label: "AI Health Summary", path: "/dashboard/ai-summary", color: "#7c3aed" },
+                          { label: "Upload Lab Results", path: "/upload", color: "#22c55e" },
+                          { label: "Manage Medications", path: "/medications", color: "#f59e0b" },
+                          { label: "Connect Wearable", path: "/wearables", color: "#0ea5e9" },
+                        ].map((btn) => (
+                          <Chip
+                            key={btn.path}
+                            label={btn.label}
+                            onClick={() => router.push(btn.path)}
+                            sx={{
+                              fontWeight: 800,
+                              fontSize: 12,
+                              cursor: "pointer",
+                              background: alpha(btn.color, isDark ? 0.16 : 0.10),
+                              color: btn.color,
+                              border: `1px solid ${alpha(btn.color, 0.3)}`,
+                              "&:hover": {
+                                background: alpha(btn.color, isDark ? 0.25 : 0.18),
+                                transform: "translateY(-1px)",
+                              },
+                              transition: "all 0.2s",
+                            }}
+                          />
+                        ))}
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </Box>
 
-            <CardContent sx={{ p: 3, flex: 1, display: "flex", flexDirection: "column" }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Box>
-                  <Typography sx={{ fontWeight: 950 }}>Praxia AI Assistant</Typography>
-                  <Typography variant="body2" sx={{ color: isDark ? alpha("#E2E8F0", 0.70) : theme.palette.text.secondary }}>
-                    Explainable wellness guidance
-                  </Typography>
-                </Box>
-
-                <Chip icon={<AutoAwesomeIcon />} label="Online" sx={{ ...pill, background: alpha(theme.palette.primary.main, isDark ? 0.18 : 0.12) }} />
-              </Stack>
-
-              <Box
-                sx={{
-                  mt: 2,
-                  borderRadius: 0,
-                  border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.14 : 0.08)}`,
-                  background: isDark
-                    ? `radial-gradient(500px 220px at 50% 40%, ${alpha(theme.palette.primary.main, 0.18)}, transparent 60%), ${alpha("#020617", 0.35)}`
-                    : `radial-gradient(500px 220px at 50% 40%, ${alpha(theme.palette.primary.main, 0.12)}, transparent 60%), ${alpha("#ffffff", 0.55)}`,
-                  p: 1.2,
-                  display: "grid",
-                  placeItems: "center",
-                }}
-              >
-                <Lottie animationData={aiHealth} loop autoplay style={{ width: "100%", maxWidth: 380, height: 320 }} />
-              </Box>
-
-              <Typography variant="body2" sx={{ mt: 1.5, color: isDark ? alpha("#E2E8F0", 0.70) : theme.palette.text.secondary }}>
-                Next: connect consent + data sources so AI can generate insights only from permitted scopes.
-              </Typography>
-
-              <Box sx={{ flex: 1 }} />
-
-              <Stack spacing={1.2} sx={{ mt: 2 }}>
-                <Button variant="contained" color="success" sx={{ borderRadius: 0, fontWeight: 950 }} onClick={() => router.push("/insights")}>
-                  Open AI Insights
-                </Button>
-                <Button variant="outlined" sx={{ borderRadius: 0, fontWeight: 950 }} onClick={() => router.push("/consent")}>
-                  Manage Consent
-                </Button>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-    </Box>
-  );
-}
-
-function MiniStat({ title, value }: { title: string; value: number }) {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
-
-  return (
-    <Box
-      sx={{
-        flex: 1,
-        p: 2,
-        borderRadius: 0,
-        border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.14 : 0.08)}`,
-        background: isDark ? alpha("#020617", 0.30) : alpha("#ffffff", 0.60),
-        boxShadow: isDark ? "none" : "0 16px 50px rgba(2,6,23,0.06)",
-        minWidth: 120,
-      }}
-    >
-      <Typography variant="caption" sx={{ color: isDark ? alpha("#E2E8F0", 0.70) : theme.palette.text.secondary }}>
-        {title}
-      </Typography>
-      <Typography variant="h6" sx={{ fontWeight: 950, mt: 0.2 }}>
-        {value} <span style={{ fontSize: 16, opacity: 0.7, fontWeight: 700 }}>kg</span>
-      </Typography>
+      {/* ── Section I: Bottom Navigation (Mobile) ──── */}
+      {isMobile && (
+        <Box
+          sx={{
+            position: "fixed",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            zIndex: 1100,
+            background: isDark
+              ? alpha("#0f172a", 0.94)
+              : alpha("#ffffff", 0.95),
+            borderTop: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.12 : 0.08)}`,
+            backdropFilter: "blur(20px)",
+            boxShadow: "0 -8px 30px rgba(0,0,0,0.12)",
+          }}
+        >
+          <Tabs
+            value={activeTab}
+            onChange={(_, v) => {
+              setActiveTab(v);
+              router.push(NAV_TABS[v].path);
+            }}
+            variant="fullWidth"
+            sx={{
+              "& .MuiTab-root": {
+                minWidth: 0,
+                fontSize: 10,
+                fontWeight: 700,
+                textTransform: "none",
+                py: 1.2,
+                gap: 0.5,
+                flexDirection: "column",
+              },
+              "& .MuiTabs-indicator": {
+                top: 0,
+                bottom: "auto",
+                height: 3,
+                background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                borderRadius: "0 0 3px 3px",
+              },
+            }}
+          >
+            {NAV_TABS.map((tab) => (
+              <Tab
+                key={tab.path}
+                icon={tab.icon}
+                label={tab.label}
+                aria-label={`Navigate to ${tab.label}`}
+              />
+            ))}
+          </Tabs>
+        </Box>
+      )}
     </Box>
   );
 }

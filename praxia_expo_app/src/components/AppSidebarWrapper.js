@@ -1,17 +1,56 @@
 import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Dimensions, TouchableWithoutFeedback } from 'react-native';
+import {
+  View, Text, StyleSheet, TouchableOpacity, ScrollView,
+  Animated, Dimensions, TouchableWithoutFeedback,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { AppColors } from '../constants/theme';
 import { ApiService } from '../services/apiService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
+const DRAWER_WIDTH = width * 0.78;
 
-const AppSidebarWrapper = forwardRef(({ navigation, children }, ref) => {
+// ── Menu structure ────────────────────────────────────────────────────────────
+const MENU_SECTIONS = [
+  {
+    heading: 'DASHBOARD',
+    items: [
+      { icon: 'home',          label: 'Home Dashboard',    screen: 'Dashboard',     color: AppColors.primary },
+      { icon: 'today',         label: 'Daily Snapshot',    screen: 'DailySnapshot', color: AppColors.teal },
+      { icon: 'auto-awesome',  label: 'AI Health Summary', screen: 'AiSummary',     color: AppColors.accent },
+    ],
+  },
+  {
+    heading: 'YOUR JOURNEY',
+    items: [
+      { icon: 'sensors',            label: 'Data Sources',      screen: 'DataSources',      color: '#64748B' },
+      { icon: 'chat-bubble-outline', label: 'AI Assistant',     screen: 'Assistant',         color: '#64748B' },
+      { icon: 'auto-awesome',       label: 'Predictions',       screen: 'Prediction',        color: '#64748B' },
+      { icon: 'check-circle-outline',label: 'Recommendations',  screen: 'ActionPlan',        color: '#64748B' },
+      { icon: 'trending-up',        label: 'Track Progress',    screen: 'TrackProgress',     color: '#64748B' },
+      { icon: 'science',            label: 'Lab Results',       screen: 'LabResults',        color: '#64748B' },
+      { icon: 'medical-services',   label: 'Escalation',        screen: 'Escalation',        color: '#64748B' },
+      { icon: 'forum',              label: 'Message Portal',    screen: 'MessagePortal',     color: '#64748B' },
+      { icon: 'map',                label: 'Journey Flow',      screen: 'JourneyFlow',       color: '#64748B' },
+    ],
+  },
+  {
+    heading: 'ACCOUNT',
+    items: [
+      { icon: 'settings', label: 'Settings', screen: 'Settings', color: '#64748B' },
+    ],
+  },
+];
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
+const AppSidebarWrapper = forwardRef(({ navigation, children, activeScreen = '' }, ref) => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const slideAnim = useRef(new Animated.Value(-width * 0.75)).current;
-
+  const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
+  const overlayAnim = useRef(new Animated.Value(0)).current;
   const [username, setUsername] = useState('User');
 
   useEffect(() => {
@@ -23,121 +62,155 @@ const AppSidebarWrapper = forwardRef(({ navigation, children }, ref) => {
   }, []);
 
   useImperativeHandle(ref, () => ({
-    toggleDrawer: () => toggleDrawer()
+    toggleDrawer: () => toggleDrawer(),
+    openDrawer: () => openDrawer(),
+    closeDrawer: () => closeDrawer(),
   }));
 
+  const openDrawer = () => {
+    setIsDrawerOpen(true);
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 280,
+        useNativeDriver: true,
+      }),
+      Animated.timing(overlayAnim, {
+        toValue: 1,
+        duration: 280,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const closeDrawer = () => {
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: -DRAWER_WIDTH,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.timing(overlayAnim, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+    ]).start(() => setIsDrawerOpen(false));
+  };
+
   const toggleDrawer = () => {
-    const toValue = isDrawerOpen ? -width * 0.75 : 0;
-    Animated.timing(slideAnim, {
-      toValue,
-      duration: 300,
-      useNativeDriver: true,
-    }).start(() => {
-      setIsDrawerOpen(!isDrawerOpen);
-    });
+    isDrawerOpen ? closeDrawer() : openDrawer();
   };
 
   const handleLogout = async () => {
-    await ApiService.logout();
-    navigation.replace('Login');
+    closeDrawer();
+    setTimeout(async () => {
+      await ApiService.logout();
+      navigation.replace('Login');
+    }, 260);
   };
 
   const navigateTo = (screen) => {
-    toggleDrawer();
-    navigation.navigate(screen);
+    closeDrawer();
+    setTimeout(() => navigation.navigate(screen), 260);
   };
+
+  const initials = username
+    .split(' ')
+    .slice(0, 2)
+    .map((w) => w.charAt(0).toUpperCase())
+    .join('');
 
   return (
     <View style={{ flex: 1 }}>
-      {/* Main Content */}
-      <View style={{ flex: 1 }}>
-        {children}
-      </View>
+      {/* ── Screen content ─────────────────────────────────────────── */}
+      <View style={{ flex: 1 }}>{children}</View>
 
-      {/* Drawer Overlay */}
+      {/* ── Backdrop overlay ───────────────────────────────────────── */}
       {isDrawerOpen && (
-        <TouchableWithoutFeedback onPress={toggleDrawer}>
-          <View style={styles.overlay} />
+        <TouchableWithoutFeedback onPress={closeDrawer}>
+          <Animated.View
+            style={[styles.overlay, { opacity: overlayAnim }]}
+          />
         </TouchableWithoutFeedback>
       )}
-      
-      {/* Drawer Component */}
+
+      {/* ── Slide-in Drawer ────────────────────────────────────────── */}
       <Animated.View style={[styles.drawer, { transform: [{ translateX: slideAnim }] }]}>
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#F2F4F7' }}>
-          <View style={styles.drawerHeader}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{username.charAt(0).toUpperCase()}</Text>
+        <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
+
+          {/* Header with gradient */}
+          <LinearGradient
+            colors={[AppColors.primary, AppColors.primaryMid]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.drawerHeader}
+          >
+            {/* Close button */}
+            <TouchableOpacity style={styles.closeBtn} onPress={closeDrawer}>
+              <MaterialIcons name="close" size={20} color="rgba(255,255,255,0.8)" />
+            </TouchableOpacity>
+
+            {/* Avatar */}
+            <View style={styles.avatarWrapper}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{initials || 'U'}</Text>
+              </View>
             </View>
-            <View style={{ marginLeft: 16 }}>
-              <Text style={styles.username}>{username}</Text>
-              <Text style={styles.email}>Active Session</Text>
+            <Text style={styles.username}>{username}</Text>
+            <View style={styles.statusPill}>
+              <View style={styles.statusDot} />
+              <Text style={styles.statusText}>Active Session</Text>
             </View>
-          </View>
+          </LinearGradient>
 
-          <ScrollView style={{paddingTop: 10}}>
-            <Text style={styles.sectionTitle}>YOUR JOURNEY</Text>
-            
-            <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('Welcome')}>
-              <MaterialIcons name="door-front" size={22} color="#1D3B5A" style={{width: 30}} />
-              <Text style={styles.itemText}>1. Entry Welcome</Text>
-            </TouchableOpacity>
+          {/* Menu items */}
+          <ScrollView
+            style={styles.menuScroll}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 24 }}
+          >
+            {MENU_SECTIONS.map((section, si) => (
+              <View key={si}>
+                <Text style={styles.sectionHeading}>{section.heading}</Text>
 
-            <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('DataSources')}>
-              <MaterialIcons name="sensors" size={22} color="#1D3B5A" style={{width: 30}} />
-              <Text style={styles.itemText}>2. Data Sources</Text>
-            </TouchableOpacity>
+                {section.items.map((item, ii) => {
+                  const isActive = activeScreen === item.screen;
+                  return (
+                    <TouchableOpacity
+                      key={ii}
+                      style={[styles.menuItem, isActive && styles.menuItemActive]}
+                      onPress={() => navigateTo(item.screen)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[
+                        styles.menuIconBox,
+                        { backgroundColor: isActive ? AppColors.primary : `${item.color}18` },
+                      ]}>
+                        <MaterialIcons
+                          name={item.icon}
+                          size={19}
+                          color={isActive ? '#fff' : item.color}
+                        />
+                      </View>
+                      <Text style={[styles.menuLabel, isActive && styles.menuLabelActive]}>
+                        {item.label}
+                      </Text>
+                      {isActive && (
+                        <MaterialIcons name="chevron-right" size={18} color={AppColors.primary} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
 
-            <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('Dashboard')}>
-              <MaterialIcons name="insights" size={22} color="#1D3B5A" style={{width: 30}} />
-              <Text style={styles.itemText}>3. Health Intelligence</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('Assistant')}>
-              <MaterialIcons name="chat-bubble-outline" size={22} color="#1D3B5A" style={{width: 30}} />
-              <Text style={styles.itemText}>4. AI Assistance</Text>
-            </TouchableOpacity>
+                {si < MENU_SECTIONS.length - 1 && <View style={styles.divider} />}
+              </View>
+            ))}
 
-            <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('Prediction')}>
-              <MaterialIcons name="auto-awesome" size={22} color="#1D3B5A" style={{width: 30}} />
-              <Text style={styles.itemText}>5. Prediction</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('ActionPlan')}>
-              <MaterialIcons name="check-circle-outline" size={22} color="#1D3B5A" style={{width: 30}} />
-              <Text style={styles.itemText}>6. Recommendation</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('TrackProgress')}>
-              <MaterialIcons name="trending-up" size={22} color="#1D3B5A" style={{width: 30}} />
-              <Text style={styles.itemText}>7. Track Progress</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('Escalation')}>
-              <MaterialIcons name="medical-services" size={22} color="#1D3B5A" style={{width: 30}} />
-              <Text style={styles.itemText}>8. Escalation</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('MessagePortal')}>
-              <MaterialIcons name="forum" size={22} color="#1D3B5A" style={{width: 30}} />
-              <Text style={styles.itemText}>9. Message Portal</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('JourneyFlow')}>
-              <MaterialIcons name="map" size={22} color="#1D3B5A" style={{width: 30}} />
-              <Text style={styles.itemText}>10. Journey Flow</Text>
-            </TouchableOpacity>
-            
-            <View style={styles.divider} />
-            <Text style={styles.sectionTitle}>ACCOUNT</Text>
-            
-            <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('Settings')}>
-              <MaterialIcons name="settings" size={22} color="#1D3B5A" style={{width: 30}} />
-              <Text style={styles.itemText}>Settings</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.drawerItem} onPress={handleLogout}>
-              <MaterialIcons name="logout" size={22} color="#EF4444" style={{width: 30}} />
-              <Text style={[styles.itemText, {color: '#EF4444'}]}>Logout</Text>
+            {/* Logout */}
+            <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
+              <MaterialIcons name="logout" size={19} color="#EF4444" />
+              <Text style={styles.logoutText}>Sign Out</Text>
             </TouchableOpacity>
           </ScrollView>
         </SafeAreaView>
@@ -146,50 +219,105 @@ const AppSidebarWrapper = forwardRef(({ navigation, children }, ref) => {
   );
 });
 
+export default AppSidebarWrapper;
+
+// ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   overlay: {
     position: 'absolute',
     top: 0, bottom: 0, left: 0, right: 0,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(15,23,42,0.45)',
     zIndex: 10,
   },
   drawer: {
     position: 'absolute',
     top: 0, bottom: 0, left: 0,
-    width: width * 0.75,
-    backgroundColor: '#F2F4F7',
+    width: DRAWER_WIDTH,
+    backgroundColor: '#FFFFFF',
     zIndex: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 5, height: 0 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 20,
+    shadowOffset: { width: 6, height: 0 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 24,
   },
-  drawerHeader: {
-    padding: 20,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  avatar: {
-    width: 52, height: 52, borderRadius: 26,
-    backgroundColor: '#ECFDF5', justifyContent: 'center', alignItems: 'center',
-  },
-  avatarText: { fontSize: 22, fontWeight: 'bold', color: AppColors.primary },
-  username: { fontWeight: 'bold', fontSize: 16, color: '#1D3B5A' },
-  email: { fontSize: 12, color: 'gray', marginTop: 2 },
-  sectionTitle: {
-    fontSize: 10, fontWeight: 'bold', color: 'gray', letterSpacing: 1.2,
-    marginLeft: 24, marginBottom: 8, marginTop: 8,
-  },
-  drawerItem: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 12, paddingHorizontal: 24, marginBottom: 4,
-  },
-  itemText: { fontWeight: '600', color: '#1D3B5A', fontSize: 14 },
-  divider: { height: 1, backgroundColor: '#E0E0E0', marginVertical: 16 }
-});
 
-export default AppSidebarWrapper;
+  // Header
+  drawerHeader: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 24,
+    alignItems: 'flex-start',
+  },
+  closeBtn: {
+    alignSelf: 'flex-end',
+    padding: 4,
+    marginBottom: 16,
+  },
+  avatarWrapper: { marginBottom: 12 },
+  avatar: {
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: 'rgba(255,255,255,0.5)',
+  },
+  avatarText: {
+    fontSize: 22, fontWeight: '900', color: '#FFFFFF',
+  },
+  username: {
+    fontSize: 17, fontWeight: '800', color: '#FFFFFF',
+    marginBottom: 6, letterSpacing: -0.3,
+  },
+  statusPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: 999,
+  },
+  statusDot: {
+    width: 7, height: 7, borderRadius: 3.5,
+    backgroundColor: '#4ADE80',
+  },
+  statusText: { fontSize: 11, color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
+
+  // Menu
+  menuScroll: { flex: 1, backgroundColor: '#F8FAFC', paddingTop: 8 },
+  sectionHeading: {
+    fontSize: 10, fontWeight: '800', color: '#94A3B8',
+    letterSpacing: 1.4, marginLeft: 20, marginTop: 16, marginBottom: 4,
+  },
+  menuItem: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 10, paddingHorizontal: 16,
+    marginHorizontal: 8, borderRadius: 12, marginBottom: 2,
+    gap: 12,
+  },
+  menuItemActive: {
+    backgroundColor: `${AppColors.primary}10`,
+  },
+  menuIconBox: {
+    width: 34, height: 34, borderRadius: 9,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  menuLabel: {
+    flex: 1, fontSize: 14, fontWeight: '600', color: '#334155',
+  },
+  menuLabelActive: {
+    color: AppColors.primary, fontWeight: '700',
+  },
+
+  divider: {
+    height: 1, backgroundColor: '#E8ECF0',
+    marginHorizontal: 20, marginTop: 8,
+  },
+
+  // Logout
+  logoutBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingVertical: 12, paddingHorizontal: 16,
+    marginHorizontal: 8, borderRadius: 12,
+    marginTop: 8,
+    backgroundColor: '#FEF2F2',
+  },
+  logoutText: { fontSize: 14, fontWeight: '700', color: '#EF4444' },
+});
